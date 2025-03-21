@@ -11,13 +11,7 @@ app.use(express.json());
 app.use(cors({ origin: process.env.FRONTEND_URL })); // ✅ URL Frontend dynamique
 
 // 📌 🔥 Connexion MySQL (Railway)
-const db = mysql.createConnection({
-    host: process.env.MYSQLHOST,
-    port: process.env.MYSQLPORT,
-    user: process.env.MYSQLUSER,
-    password: process.env.MYSQLPASSWORD,
-    database: process.env.MYSQLDATABASE,
-});
+const db = mysql.createConnection(process.env.DATABASE_URL);
 
 db.connect((err) => {
     if (err) {
@@ -26,6 +20,8 @@ db.connect((err) => {
     }
     console.log("✅ Connexion réussie à MySQL !");
 });
+
+
 
 // 📌 Configuration d'Amazon S3
 const s3 = new AWS.S3({
