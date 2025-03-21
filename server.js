@@ -12,7 +12,7 @@ app.use(express.json());
 app.use(cors({ origin: process.env.FRONTEND_URL })); // ✅ URL Frontend dynamique
 
 // 📌 🔥 Connexion MySQL (Railway)
-const mysql = require("mysql2");
+
 const { URL } = require("url");
 
 const connectionUrl = new URL(process.env.DATABASE_URL);
