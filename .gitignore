@@ -1,0 +1,15 @@
+
+.env
+*.log
+node_modules/
+uploads/
+__pycache__/
+.DS_Store
+
+# 🚀 Fichiers spécifiques à IDEs et OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+Thumbs.db
