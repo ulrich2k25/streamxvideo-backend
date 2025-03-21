@@ -4,7 +4,6 @@ const mysql = require("mysql2");
 const cors = require("cors");
 const multer = require("multer");
 const AWS = require("aws-sdk");
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 // Initialisation Express
 const app = express();
@@ -138,30 +137,6 @@ app.post("/api/auth", (req, res) => {
     });
 });
 
-// 📌 Route POST : Paiement Stripe et abonnement
-app.post("/api/payments/stripe", async (req, res) => {
-    const { email } = req.body;
-    try {
-        const session = await stripe.checkout.sessions.create({
-            payment_method_types: ["card"],
-            line_items: [
-                {
-                    price_data: { currency: "usd", product_data: { name: "Abonnement" }, unit_amount: 500 },
-                    quantity: 1,
-                },
-            ],
-            mode: "payment",
-            success_url: `${process.env.FRONTEND_URL}/?message=Abonnement%20activé`,
-            cancel_url: `${process.env.FRONTEND_URL}/cancel`,
-        });
-
-        res.json({ url: session.url });
-    } catch (error) {
-        console.error("❌ Erreur Stripe:", error);
-        res.status(500).json({ error: "Erreur paiement Stripe" });
-    }
-});
-
 // 📌 Route GET : Vérification du statut serveur
 app.get("/api/status", (req, res) => {
     res.json({ message: "✅ Serveur en ligne !" });
@@ -170,4 +145,3 @@ app.get("/api/status", (req, res) => {
 // 📌 Démarrer le serveur
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Serveur lancé sur le port ${PORT}`));
-
