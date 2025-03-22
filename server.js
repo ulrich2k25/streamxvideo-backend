@@ -1,7 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const mysql = require("mysql2");
-
+const { URL } = require("url");
 const cors = require("cors");
 const multer = require("multer");
 const AWS = require("aws-sdk");
@@ -13,8 +13,6 @@ app.use(cors({ origin: process.env.FRONTEND_URL })); // ✅ URL Frontend dynamiq
 
 console.log("DATABASE_URL:", process.env.DATABASE_URL);
 // 📌 🔥 Connexion MySQL (Railway)
-
-const { URL } = require("url");
 
 const connectionUrl = new URL(process.env.DATABASE_URL);
 
