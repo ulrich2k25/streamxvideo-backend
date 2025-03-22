@@ -11,6 +11,7 @@ const app = express();
 app.use(express.json());
 app.use(cors({ origin: process.env.FRONTEND_URL })); // ✅ URL Frontend dynamique
 
+console.log("DATABASE_URL:", process.env.DATABASE_URL);
 // 📌 🔥 Connexion MySQL (Railway)
 
 const { URL } = require("url");
