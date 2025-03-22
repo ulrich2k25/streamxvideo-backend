@@ -6,22 +6,22 @@ const cors = require("cors");
 const multer = require("multer");
 const AWS = require("aws-sdk");
 
-// Initialisation Express
+// 📌 Initialisation Express
 const app = express();
 app.use(express.json());
-app.use(cors({ origin: process.env.FRONTEND_URL })); // ✅ URL Frontend dynamique
+app.use(cors({ origin: process.env.FRONTEND_URL })); // ✅ CORS frontend autorisé
 
-console.log("DATABASE_URL:", process.env.DATABASE_URL);
-// 📌 🔥 Connexion MySQL (Railway)
+// 🔥 Connexion à MySQL via DATABASE_URL
+console.log("🔍 DATABASE_URL:", process.env.DATABASE_URL); // (à supprimer après débogage)
 
-const connectionUrl = new URL(process.env.DATABASE_URL);
+const connectionUrl = new URL(process.env.DATABASE_URL); // Parse l’URL
 
 const db = mysql.createConnection({
     host: connectionUrl.hostname,
     port: connectionUrl.port,
     user: connectionUrl.username,
     password: connectionUrl.password,
-    database: connectionUrl.pathname.substring(1), // Supprime le "/" du début
+    database: connectionUrl.pathname.replace("/", ""), // Enlève le "/" du début
 });
 
 db.connect((err) => {
@@ -31,6 +31,7 @@ db.connect((err) => {
     }
     console.log("✅ Connexion réussie à MySQL !");
 });
+
 
 
 
