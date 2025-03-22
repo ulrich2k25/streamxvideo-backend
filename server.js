@@ -14,7 +14,7 @@ app.use(cors({ origin: process.env.FRONTEND_URL })); // ✅ CORS frontend autori
 // 🔥 Connexion à MySQL via DATABASE_URL
 console.log("🔍 DATABASE_URL:", process.env.DATABASE_URL); // (à supprimer après débogage)
 
-const connectionUrl = new URL(process.env.DATABASE_URL); // Parse l’URL
+const connectionUrl = new URL(process.env.MYSQL_URL); // et non DATABASE_URL
 
 const db = mysql.createConnection({
     host: connectionUrl.hostname,
