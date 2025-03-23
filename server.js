@@ -1,7 +1,6 @@
 require("dotenv").config();
 const express = require("express");
 const mysql = require("mysql2");
-const { URL } = require("url");
 const cors = require("cors");
 const multer = require("multer");
 const AWS = require("aws-sdk");
@@ -11,17 +10,13 @@ const app = express();
 app.use(express.json());
 app.use(cors({ origin: process.env.FRONTEND_URL })); // ✅ CORS frontend autorisé
 
-// 🔥 Connexion à MySQL via DATABASE_URL
-console.log("🔍 DATABASE_URL:", process.env.DATABASE_URL); // (à supprimer après débogage)
-
-const connectionUrl = new URL(process.env.MYSQL_URL); // et non DATABASE_URL
-
+// 🔥 Connexion MySQL (via variables .env)
 const db = mysql.createConnection({
-    host: connectionUrl.hostname,
-    port: connectionUrl.port,
-    user: connectionUrl.username,
-    password: connectionUrl.password,
-    database: connectionUrl.pathname.replace("/", ""), // Enlève le "/" du début
+    host: process.env.MYSQLHOST,
+    user: process.env.MYSQLUSER,
+    password: process.env.MYSQLPASSWORD,
+    database: process.env.MYSQLDATABASE,
+    port: process.env.MYSQLPORT,
 });
 
 db.connect((err) => {
@@ -32,9 +27,6 @@ db.connect((err) => {
     console.log("✅ Connexion réussie à MySQL !");
 });
 
-
-
-
 // 📌 Configuration d'Amazon S3
 const s3 = new AWS.S3({
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
@@ -42,24 +34,20 @@ const s3 = new AWS.S3({
     region: process.env.AWS_REGION,
 });
 
-// 📌 Configuration Multer pour stockage mémoire
+// 📌 Configuration Multer
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// 📌 Route POST : Upload de vidéo sur Amazon S3 et enregistrement dans MySQL
+// 📌 Upload vidéo
 app.post("/api/videos/upload", upload.single("video"), async (req, res) => {
     try {
-        if (!req.file) {
-            return res.status(400).json({ error: "Aucun fichier trouvé." });
-        }
+        if (!req.file) return res.status(400).json({ error: "Aucun fichier trouvé." });
 
-        // Vérification de l'extension
         const allowedTypes = ["video/mp4", "video/mkv", "video/webm"];
         if (!allowedTypes.includes(req.file.mimetype)) {
             return res.status(400).json({ error: "Format non supporté." });
         }
 
-        // Génération d'un nom de fichier unique
         const fileName = `${Date.now()}_${req.file.originalname}`;
         const params = {
             Bucket: process.env.AWS_S3_BUCKET_NAME,
@@ -71,14 +59,11 @@ app.post("/api/videos/upload", upload.single("video"), async (req, res) => {
         const uploadResult = await s3.upload(params).promise();
         const videoUrl = uploadResult.Location;
 
-        // Enregistrement dans la base de données
         db.query(
             "INSERT INTO videos (title, file_path, uploaded_at) VALUES (?, ?, NOW())",
             [req.file.originalname, videoUrl],
             (err) => {
-                if (err) {
-                    return res.status(500).json({ error: "Erreur d'insertion en base." });
-                }
+                if (err) return res.status(500).json({ error: "Erreur d'insertion en base." });
                 res.json({ message: "✅ Vidéo uploadée avec succès !", url: videoUrl });
             }
         );
@@ -88,18 +73,15 @@ app.post("/api/videos/upload", upload.single("video"), async (req, res) => {
     }
 });
 
-// 📌 Route GET : Récupération de toutes les vidéos
+// 📌 GET : Liste vidéos
 app.get("/api/videos", (req, res) => {
     db.query("SELECT id, title, file_path, uploaded_at FROM videos", (err, results) => {
-        if (err) {
-            res.status(500).json({ error: "Erreur récupération vidéos." });
-            return;
-        }
+        if (err) return res.status(500).json({ error: "Erreur récupération vidéos." });
         res.json(results);
     });
 });
 
-// 📌 Route DELETE : Suppression d'une vidéo sur S3 et MySQL
+// 📌 DELETE : Supprimer une vidéo
 app.delete("/api/videos/:id", async (req, res) => {
     const { id } = req.params;
 
@@ -124,7 +106,7 @@ app.delete("/api/videos/:id", async (req, res) => {
     });
 });
 
-// 📌 Route POST : Authentification et abonnement
+// 📌 Authentification ou inscription
 app.post("/api/auth", (req, res) => {
     const { email, password } = req.body;
     db.query("SELECT * FROM users WHERE email = ?", [email], (err, results) => {
@@ -145,11 +127,11 @@ app.post("/api/auth", (req, res) => {
     });
 });
 
-// 📌 Route GET : Vérification du statut serveur
+// 📌 Test du serveur
 app.get("/api/status", (req, res) => {
     res.json({ message: "✅ Serveur en ligne !" });
 });
 
-// 📌 Démarrer le serveur
+// 📌 Lancer serveur
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Serveur lancé sur le port ${PORT}`));
