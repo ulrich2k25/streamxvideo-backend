@@ -76,7 +76,11 @@ app.post("/api/videos/upload", upload.single("video"), async (req, res) => {
 // 📌 GET : Liste vidéos
 app.get("/api/videos", (req, res) => {
     db.query("SELECT id, title, file_path, uploaded_at FROM videos", (err, results) => {
-        if (err) return res.status(500).json({ error: "Erreur récupération vidéos." });
+	if (err) {
+			console.error("❌ Erreur SQL :", err); // 👈 ajoute ce log
+            res.status(500).json({ error: "Erreur récupération vidéos." });
+            return;
+        }
         res.json(results);
     });
 });
