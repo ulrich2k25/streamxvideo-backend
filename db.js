@@ -23,14 +23,17 @@ if (
   process.exit(1);
 }
 
-// Crée la connexion
-const connection = mysql.createConnection({
+const db = mysql.createPool({
   host: process.env.MYSQLHOST,
   user: process.env.MYSQLUSER,
   password: process.env.MYSQLPASSWORD,
   database: process.env.MYSQLDATABASE,
   port: process.env.MYSQLPORT,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
 });
+
 
 // Connexion à la base
 connection.connect((err) => {
