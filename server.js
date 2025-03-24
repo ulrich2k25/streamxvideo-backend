@@ -11,6 +11,12 @@ app.use(express.json());
 app.use(cors({ origin: process.env.FRONTEND_URL })); // ✅ CORS frontend autorisé
 
 console.log("🔍 Host reçu:", process.env.MYSQLHOST);
+console.log("🔍 Host reçu:", process.env.MYSQLHOST);
+console.log("🔍 User reçu:", process.env.MYSQLUSER);
+console.log("🔍 Password reçu:", process.env.MYSQLPASSWORD);
+console.log("🔍 DB reçue:", process.env.MYSQLDATABASE);
+console.log("🔍 Port reçu:", process.env.MYSQLPORT);
+
 
 
 // 🔥 Connexion MySQL (via variables .env)
