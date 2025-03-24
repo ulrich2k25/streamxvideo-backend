@@ -26,6 +26,9 @@ db.connect((err) => {
     }
     console.log("✅ Connexion réussie à MySQL !");
 });
+// Ligne temporaire pour forcer déploiement 🚀
+console.log("🔁 Déploiement forcé après modif .env");
+
 
 // 📌 Configuration d'Amazon S3
 const s3 = new AWS.S3({
