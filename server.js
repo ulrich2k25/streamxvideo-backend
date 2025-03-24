@@ -4,39 +4,13 @@ const mysql = require("mysql2");
 const cors = require("cors");
 const multer = require("multer");
 const AWS = require("aws-sdk");
+const db = require("./db"); // Assure-toi que le chemin est correct
+
 
 // 📌 Initialisation Express
 const app = express();
 app.use(express.json());
 app.use(cors({ origin: process.env.FRONTEND_URL })); // ✅ CORS frontend autorisé
-
-console.log("🔍 Host reçu:", process.env.MYSQLHOST);
-console.log("🔍 Host reçu:", process.env.MYSQLHOST);
-console.log("🔍 User reçu:", process.env.MYSQLUSER);
-console.log("🔍 Password reçu:", process.env.MYSQLPASSWORD);
-console.log("🔍 DB reçue:", process.env.MYSQLDATABASE);
-console.log("🔍 Port reçu:", process.env.MYSQLPORT);
-
-
-
-// 🔥 Connexion MySQL (via variables .env)
-const db = mysql.createConnection({
-    host: process.env.MYSQLHOST,
-    user: process.env.MYSQLUSER,
-    password: process.env.MYSQLPASSWORD,
-    database: process.env.MYSQLDATABASE,
-    port: process.env.MYSQLPORT,
-});
-
-db.connect((err) => {
-    if (err) {
-        console.error("❌ Erreur de connexion à MySQL :", err);
-        return;
-    }
-    console.log("✅ Connexion réussie à MySQL !");
-});
-// Ligne temporaire pour forcer déploiement 🚀
-console.log("🔁 Déploiement forcé après modif .env");
 
 
 // 📌 Configuration d'Amazon S3
