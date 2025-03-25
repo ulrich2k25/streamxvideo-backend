@@ -45,7 +45,7 @@ app.post("/api/videos/upload", upload.single("video"), async (req, res) => {
       return res.status(400).json({ error: "Format non supporté." });
     }
 
-    const fileName = ${Date.now()}_${req.file.originalname};
+    const fileName = `${Date.now()}_${req.file.originalname}`;
     const params = {
       Bucket: process.env.AWS_S3_BUCKET_NAME,
       Key: fileName,
