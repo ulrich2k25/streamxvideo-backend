@@ -8,7 +8,11 @@ const db = require("./db"); // ✅ Connexion MySQL via pool
 
 const app = express();
 app.use(express.json());
-app.use(cors({ origin: process.env.FRONTEND_URL }));
+app.use(cors({
+  origin: "https://streamxvideo-frontend.vercel.app/", // Mets l'URL exacte de ton frontend
+  methods: ["GET", "POST", "DELETE"],
+  credentials: true,
+}));
 
 const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
