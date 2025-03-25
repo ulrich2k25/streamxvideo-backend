@@ -12,18 +12,9 @@ app.use(express.json());
 
 // ✅ Configuration CORS flexible (autorise plusieurs URLs)
 app.use(cors({
-  origin: (origin, callback) => {
-    const allowedOrigins = [
-      "https://streamxvideo-frontend.vercel.app",
-      "https://streamxvideo-frontend-ulrich2k25.vercel.app"
-    ];
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
-  credentials: true,
+  origin: '*',
+  methods: ['GET', 'POST', 'DELETE', 'PUT'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'user-email'],
 }));
 
 // AWS S3
