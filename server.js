@@ -9,7 +9,22 @@ const db = require("./db"); // ✅ Connexion MySQL via pool
 // 📌 Initialisation Express
 const app = express();
 app.use(express.json());
-app.use(cors({ origin: process.env.FRONTEND_URL }));
+
+// ✅ Correction CORS pour autoriser le frontend Vercel
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://streamxvideo-frontend.vercel.app"
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    callback(new Error("CORS non autorisé"));
+  },
+  credentials: true
+}));
 
 // 📌 Configuration d'Amazon S3
 const s3 = new AWS.S3({
@@ -136,5 +151,6 @@ app.get("/api/status", (req, res) => {
 // 📌 Lancer serveur
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Serveur lancé sur le port ${PORT}`));
+
 
 
