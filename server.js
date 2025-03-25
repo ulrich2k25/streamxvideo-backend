@@ -1,3 +1,5 @@
+
+
 require("dotenv").config();
 const express = require("express");
 const mysql = require("mysql2");
@@ -10,7 +12,7 @@ const db = require("./db"); // ✅ Connexion MySQL via pool
 const app = express();
 app.use(express.json());
 
-// ✅ Correction CORS pour autoriser le frontend Vercel
+// ✅ CORS : autoriser le frontend Vercel
 const allowedOrigins = [
   "http://localhost:3000",
   "https://streamxvideo-frontend.vercel.app"
@@ -47,7 +49,7 @@ app.post("/api/videos/upload", upload.single("video"), async (req, res) => {
       return res.status(400).json({ error: "Format non supporté." });
     }
 
-    const fileName = `${Date.now()}_${req.file.originalname}`;
+    const fileName = ${Date.now()}_${req.file.originalname};
     const params = {
       Bucket: process.env.AWS_S3_BUCKET_NAME,
       Key: fileName,
@@ -150,7 +152,4 @@ app.get("/api/status", (req, res) => {
 
 // 📌 Lancer serveur
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 Serveur lancé sur le port ${PORT}`));
-
-
-
+app.listen(PORT, () => console.log(🚀 Serveur lancé sur le port ${PORT}));
