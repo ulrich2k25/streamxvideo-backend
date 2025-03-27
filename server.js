@@ -1,4 +1,4 @@
-// server.js (ou index.js)
+// server.js (backend complet avec paiement PayPal uniquement)
 require("dotenv").config();
 const express = require("express");
 const mysql = require("mysql2");
@@ -6,18 +6,19 @@ const cors = require("cors");
 const multer = require("multer");
 const AWS = require("aws-sdk");
 const db = require("./db");
+const paypal = require("@paypal/checkout-server-sdk");
 
 const app = express();
 app.use(express.json());
 
-// ✅ Configuration CORS flexible (autorise plusieurs URLs)
+// ✅ CORS autorise tout domaine (mettre domaine Vercel si tu veux restreindre)
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'DELETE', 'PUT'],
   allowedHeaders: ['Content-Type', 'Authorization', 'user-email'],
 }));
 
-// AWS S3
+// ✅ Configuration AWS S3
 const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
@@ -26,7 +27,7 @@ const s3 = new AWS.S3({
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Upload vidéo
+// ✅ Upload vidéo
 app.post("/api/videos/upload", upload.single("video"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "Aucun fichier." });
@@ -61,7 +62,7 @@ app.post("/api/videos/upload", upload.single("video"), async (req, res) => {
   }
 });
 
-// Récupération vidéos
+// ✅ Liste des vidéos
 app.get("/api/videos", (req, res) => {
   db.query("SELECT id, title, file_path, uploaded_at FROM videos", (err, results) => {
     if (err) return res.status(500).json({ error: "Erreur base de données." });
@@ -69,7 +70,7 @@ app.get("/api/videos", (req, res) => {
   });
 });
 
-// Auth simple
+// ✅ Auth simple
 app.post("/api/auth", (req, res) => {
   const { email, password } = req.body;
   db.query("SELECT * FROM users WHERE email = ?", [email], (err, results) => {
@@ -93,9 +94,52 @@ app.post("/api/auth", (req, res) => {
   });
 });
 
-// Serveur
+// ✅ Configuration PayPal
+const paypalEnv = new paypal.core.LiveEnvironment(
+  process.env.PAYPAL_CLIENT_ID,
+  process.env.PAYPAL_SECRET
+);
+const paypalClient = new paypal.core.PayPalHttpClient(paypalEnv);
+
+// ✅ Paiement PayPal
+app.post("/api/payments/paypal", async (req, res) => {
+  const { email } = req.body;
+
+  const request = new paypal.orders.OrdersCreateRequest();
+  request.requestBody({
+    intent: "CAPTURE",
+    purchase_units: [{ amount: { currency_code: "USD", value: "5.00" } }],
+    application_context: {
+      return_url: `https://streamxvideo-frontend.vercel.app/?message=Abonnement%20activé&email=${encodeURIComponent(email)}`,
+      cancel_url: "https://streamxvideo-frontend.vercel.app/?message=Paiement%20PayPal%20échoué",
+    },
+  });
+
+  try {
+    const order = await paypalClient.execute(request);
+    const approvalUrl = order.result.links.find((l) => l.rel === "approve").href;
+    res.json({ url: approvalUrl });
+  } catch (error) {
+    console.error("PayPal error:", error);
+    res.status(500).json({ error: "Erreur lors du paiement PayPal" });
+  }
+});
+
+// ✅ Valider l'abonnement après paiement
+app.get("/api/payments/success", (req, res) => {
+  const { email } = req.query;
+  if (!email) return res.status(400).json({ error: "Email manquant" });
+
+  db.query("UPDATE users SET isSubscribed = 1 WHERE email = ?", [email], (err) => {
+    if (err) return res.status(500).json({ error: "Erreur MySQL" });
+    res.redirect(`https://streamxvideo-frontend.vercel.app/?message=Abonnement%20activé`);
+  });
+});
+
+// ✅ Lancer serveur
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log("🚀 Serveur lancé sur le port", PORT));
+
 
 
 
