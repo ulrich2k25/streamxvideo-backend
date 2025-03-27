@@ -122,7 +122,7 @@ app.post("/api/payments/paypal", async (req, res) => {
   request.requestBody({
     intent: "CAPTURE",
     purchase_units: [{
-      amount: { currency_code: "USD", value: "5.00" }
+      amount: { currency_code: "USD", value: "2.00" }
     }],
     application_context: {
       return_url: `https://streamxvideo-backend-production.up.railway.app/api/payments/success?email=${encodeURIComponent(email)}`,
