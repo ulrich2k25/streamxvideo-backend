@@ -1,8 +1,3 @@
-
-
-
-
-
 require("dotenv").config();
 const express = require("express");
 const mysql = require("mysql2");
@@ -21,7 +16,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'user-email'],
 }));
 
-// 📦 AWS S3
+// AWS S3
 const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
@@ -73,7 +68,7 @@ app.get("/api/videos", (req, res) => {
   });
 });
 
-// ✅ Authentification simple
+// ✅ Authentification
 app.post("/api/auth", (req, res) => {
   const { email, password } = req.body;
 
@@ -81,21 +76,34 @@ app.post("/api/auth", (req, res) => {
     if (err) return res.status(500).json({ error: "Erreur DB." });
 
     if (results.length > 0) {
-      res.json({ message: "Connexion réussie", user: results[0] });
-    } else {
-      db.query(
-        "INSERT INTO users (email, password, isSubscribed) VALUES (?, ?, 0)",
-        [email, password],
-        (err, result) => {
-          if (err) return res.status(500).json({ error: "Erreur inscription." });
+      const user = results[0];
 
-          res.json({
-            message: "Inscription réussie",
-            user: { id: result.insertId, email, isSubscribed: 0 },
-          });
-        }
-      );
+      // Vérifie si l'abonnement est expiré
+      const now = new Date();
+      const expiration = user.subscription_expiration ? new Date(user.subscription_expiration) : null;
+
+      if (expiration && expiration < now) {
+        // Expiré : désactiver
+        db.query("UPDATE users SET isSubscribed = 0 WHERE email = ?", [email]);
+        user.isSubscribed = 0;
+      }
+
+      return res.json({ message: "Connexion réussie", user });
     }
+
+    // Inscription
+    db.query(
+      "INSERT INTO users (email, password, isSubscribed) VALUES (?, ?, 0)",
+      [email, password],
+      (err, result) => {
+        if (err) return res.status(500).json({ error: "Erreur inscription." });
+
+        res.json({
+          message: "Inscription réussie",
+          user: { id: result.insertId, email, isSubscribed: 0 },
+        });
+      }
+    );
   });
 });
 
@@ -114,13 +122,9 @@ app.post("/api/payments/paypal", async (req, res) => {
   request.requestBody({
     intent: "CAPTURE",
     purchase_units: [{
-      amount: {
-        currency_code: "USD",
-        value: "5.00"
-      }
+      amount: { currency_code: "USD", value: "5.00" }
     }],
     application_context: {
-      // 🟢 Redirection vers le backend (activation auto)
       return_url: `https://streamxvideo-backend-production.up.railway.app/api/payments/success?email=${encodeURIComponent(email)}`,
       cancel_url: "https://streamxvideo-frontend.vercel.app?message=Paiement%20annulé"
     }
@@ -141,12 +145,20 @@ app.get("/api/payments/success", (req, res) => {
   const { email } = req.query;
   if (!email) return res.status(400).json({ error: "Email manquant." });
 
-  db.query("UPDATE users SET isSubscribed = 1 WHERE email = ?", [email], (err) => {
-    if (err) return res.status(500).json({ error: "Erreur abonnement." });
-    res.redirect("https://streamxvideo-frontend.vercel.app?message=Abonnement%20activé");
-  });
+  const expirationDate = new Date();
+  expirationDate.setMonth(expirationDate.getMonth() + 1); // Abonnement pour 1 mois
+
+  db.query(
+    "UPDATE users SET isSubscribed = 1, subscription_expiration = ? WHERE email = ?",
+    [expirationDate, email],
+    (err) => {
+      if (err) return res.status(500).json({ error: "Erreur abonnement." });
+      res.redirect("https://streamxvideo-frontend.vercel.app?message=Abonnement%20activé");
+    }
+  );
 });
 
 // ✅ Démarrer serveur
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log("🚀 Serveur lancé sur le port", PORT));
+
