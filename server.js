@@ -120,7 +120,7 @@ app.post("/api/payments/paypal", async (req, res) => {
       amount: { currency_code: "EUR", value: "2.00" }
     }],
     application_context: {
-      return_url: `https://streamxvideo-backend-production.up.railway.app/api/payments/success?email=${encodeURIComponent(email)}&token=REPLACEME`,
+      return_url: `https://streamxvideo-frontend.vercel.app/success?email=${encodeURIComponent(email)}&token=REPLACEME`,
       cancel_url: "https://streamxvideo-frontend.vercel.app?message=Paiement%20annulé"
     }
   });
