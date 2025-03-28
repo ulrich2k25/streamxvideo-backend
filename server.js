@@ -16,7 +16,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'user-email'],
 }));
 
-// AWS S3 config
+// ✅ AWS S3 Config
 const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
@@ -102,14 +102,14 @@ app.post("/api/auth", (req, res) => {
   });
 });
 
-// ✅ Config PayPal LIVE
+// ✅ PayPal Live Config
 const paypalEnv = new paypal.core.LiveEnvironment(
   process.env.PAYPAL_CLIENT_ID,
   process.env.PAYPAL_SECRET
 );
 const paypalClient = new paypal.core.PayPalHttpClient(paypalEnv);
 
-// ✅ Créer un lien de paiement
+// ✅ Création lien de paiement
 app.post("/api/payments/paypal", async (req, res) => {
   const { email } = req.body;
 
@@ -120,7 +120,7 @@ app.post("/api/payments/paypal", async (req, res) => {
       amount: { currency_code: "EUR", value: "2.00" }
     }],
     application_context: {
-      return_url: `https://streamxvideo-frontend.vercel.app/success?email=${encodeURIComponent(email)}&token=REPLACEME`,
+      return_url: `https://streamxvideo-frontend.vercel.app/success?email=${encodeURIComponent(email)}`,
       cancel_url: "https://streamxvideo-frontend.vercel.app?message=Paiement%20annulé"
     }
   });
@@ -128,18 +128,14 @@ app.post("/api/payments/paypal", async (req, res) => {
   try {
     const order = await paypalClient.execute(request);
     const approvalLink = order.result.links.find(link => link.rel === "approve");
-    const orderId = order.result.id;
-
-    // On remplace le token dans l’URL de succès
-    const successUrl = `https://streamxvideo-backend-production.up.railway.app/api/payments/success?email=${encodeURIComponent(email)}&token=${orderId}`;
-    res.json({ url: approvalLink.href.replace("REPLACEME", orderId), orderId });
+    res.json({ url: approvalLink.href });
   } catch (err) {
     console.error("Erreur PayPal:", err);
     res.status(500).json({ error: "Erreur PayPal" });
   }
 });
 
-// ✅ Capture réelle du paiement PayPal
+// ✅ Capture réelle du paiement (retour depuis /success)
 app.get("/api/payments/success", async (req, res) => {
   const { email, token } = req.query;
   if (!email || !token) {
@@ -171,8 +167,6 @@ app.get("/api/payments/success", async (req, res) => {
   }
 });
 
-// ✅ Lancer le serveur
+// ✅ Lancer serveur
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log("🚀 Serveur lancé sur le port", PORT));
-
-
