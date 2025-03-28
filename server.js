@@ -16,13 +16,12 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'user-email'],
 }));
 
-// ✅ AWS S3 config
+// AWS S3 config
 const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   region: process.env.AWS_REGION,
 });
-
 const upload = multer({ storage: multer.memoryStorage() });
 
 // ✅ Upload vidéo
@@ -77,7 +76,6 @@ app.post("/api/auth", (req, res) => {
 
     if (results.length > 0) {
       const user = results[0];
-
       const now = new Date();
       const expiration = user.subscription_expiration ? new Date(user.subscription_expiration) : null;
 
@@ -111,7 +109,7 @@ const paypalEnv = new paypal.core.LiveEnvironment(
 );
 const paypalClient = new paypal.core.PayPalHttpClient(paypalEnv);
 
-// ✅ Création de commande PayPal
+// ✅ Créer un lien de paiement
 app.post("/api/payments/paypal", async (req, res) => {
   const { email } = req.body;
 
@@ -122,24 +120,26 @@ app.post("/api/payments/paypal", async (req, res) => {
       amount: { currency_code: "EUR", value: "2.00" }
     }],
     application_context: {
-      return_url: `https://streamxvideo-backend-production.up.railway.app/api/payments/success?email=${encodeURIComponent(email)}&token=ORDER_ID_REPLACED`,
+      return_url: `https://streamxvideo-backend-production.up.railway.app/api/payments/success?email=${encodeURIComponent(email)}&token=REPLACEME`,
       cancel_url: "https://streamxvideo-frontend.vercel.app?message=Paiement%20annulé"
     }
   });
 
   try {
     const order = await paypalClient.execute(request);
-    const approvalUrl = order.result.links.find(link => link.rel === "approve");
-    // Remplace ORDER_ID_REPLACED dans l’URL par l’ID réel de la commande
-    const redirectUrl = approvalUrl.href.replace("token=", `token=${order.result.id}&`);
-    res.json({ url: redirectUrl });
+    const approvalLink = order.result.links.find(link => link.rel === "approve");
+    const orderId = order.result.id;
+
+    // On remplace le token dans l’URL de succès
+    const successUrl = `https://streamxvideo-backend-production.up.railway.app/api/payments/success?email=${encodeURIComponent(email)}&token=${orderId}`;
+    res.json({ url: approvalLink.href.replace("REPLACEME", orderId), orderId });
   } catch (err) {
     console.error("Erreur PayPal:", err);
     res.status(500).json({ error: "Erreur PayPal" });
   }
 });
 
-// ✅ Capture PayPal et activation abonnement
+// ✅ Capture réelle du paiement PayPal
 app.get("/api/payments/success", async (req, res) => {
   const { email, token } = req.query;
   if (!email || !token) {
@@ -171,7 +171,7 @@ app.get("/api/payments/success", async (req, res) => {
   }
 });
 
-// ✅ Start server
+// ✅ Lancer le serveur
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log("🚀 Serveur lancé sur le port", PORT));
 
