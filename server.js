@@ -16,7 +16,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'user-email'],
 }));
 
-// AWS S3
+// ✅ AWS S3 config
 const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
@@ -78,12 +78,10 @@ app.post("/api/auth", (req, res) => {
     if (results.length > 0) {
       const user = results[0];
 
-      // Vérifie si l'abonnement est expiré
       const now = new Date();
       const expiration = user.subscription_expiration ? new Date(user.subscription_expiration) : null;
 
       if (expiration && expiration < now) {
-        // Expiré : désactiver
         db.query("UPDATE users SET isSubscribed = 0 WHERE email = ?", [email]);
         user.isSubscribed = 0;
       }
@@ -91,7 +89,6 @@ app.post("/api/auth", (req, res) => {
       return res.json({ message: "Connexion réussie", user });
     }
 
-    // Inscription
     db.query(
       "INSERT INTO users (email, password, isSubscribed) VALUES (?, ?, 0)",
       [email, password],
@@ -107,14 +104,14 @@ app.post("/api/auth", (req, res) => {
   });
 });
 
-// ✅ Config PayPal
+// ✅ Config PayPal LIVE
 const paypalEnv = new paypal.core.LiveEnvironment(
   process.env.PAYPAL_CLIENT_ID,
   process.env.PAYPAL_SECRET
 );
 const paypalClient = new paypal.core.PayPalHttpClient(paypalEnv);
 
-// ✅ Paiement PayPal
+// ✅ Création de commande PayPal
 app.post("/api/payments/paypal", async (req, res) => {
   const { email } = req.body;
 
@@ -125,40 +122,57 @@ app.post("/api/payments/paypal", async (req, res) => {
       amount: { currency_code: "EUR", value: "2.00" }
     }],
     application_context: {
-      return_url: `https://streamxvideo-backend-production.up.railway.app/api/payments/success?email=${encodeURIComponent(email)}`,
+      return_url: `https://streamxvideo-backend-production.up.railway.app/api/payments/success?email=${encodeURIComponent(email)}&token=ORDER_ID_REPLACED`,
       cancel_url: "https://streamxvideo-frontend.vercel.app?message=Paiement%20annulé"
     }
   });
 
   try {
     const order = await paypalClient.execute(request);
-    const approvalUrl = order.result.links.find((link) => link.rel === "approve");
-    res.json({ url: approvalUrl.href });
+    const approvalUrl = order.result.links.find(link => link.rel === "approve");
+    // Remplace ORDER_ID_REPLACED dans l’URL par l’ID réel de la commande
+    const redirectUrl = approvalUrl.href.replace("token=", `token=${order.result.id}&`);
+    res.json({ url: redirectUrl });
   } catch (err) {
     console.error("Erreur PayPal:", err);
     res.status(500).json({ error: "Erreur PayPal" });
   }
 });
 
-// ✅ Activation abonnement après retour PayPal
-app.get("/api/payments/success", (req, res) => {
-  const { email } = req.query;
-  if (!email) return res.status(400).json({ error: "Email manquant." });
+// ✅ Capture PayPal et activation abonnement
+app.get("/api/payments/success", async (req, res) => {
+  const { email, token } = req.query;
+  if (!email || !token) {
+    return res.status(400).json({ error: "Email ou token manquant." });
+  }
 
-  const expirationDate = new Date();
-  expirationDate.setMonth(expirationDate.getMonth() + 1); // Abonnement pour 1 mois
+  try {
+    const captureRequest = new paypal.orders.OrdersCaptureRequest(token);
+    const capture = await paypalClient.execute(captureRequest);
 
-  db.query(
-    "UPDATE users SET isSubscribed = 1, subscription_expiration = ? WHERE email = ?",
-    [expirationDate, email],
-    (err) => {
-      if (err) return res.status(500).json({ error: "Erreur abonnement." });
-      res.redirect("https://streamxvideo-frontend.vercel.app?message=Abonnement%20activé");
+    if (capture.result.status !== "COMPLETED") {
+      return res.status(400).send("Paiement non complété.");
     }
-  );
+
+    const expirationDate = new Date();
+    expirationDate.setMonth(expirationDate.getMonth() + 1);
+
+    db.query(
+      "UPDATE users SET isSubscribed = 1, subscription_expiration = ? WHERE email = ?",
+      [expirationDate, email],
+      (err) => {
+        if (err) return res.status(500).send("Erreur lors de la mise à jour de l’abonnement.");
+        res.redirect("https://streamxvideo-frontend.vercel.app?message=Abonnement%20activé");
+      }
+    );
+  } catch (err) {
+    console.error("Erreur PayPal :", err);
+    res.status(500).send("Erreur lors de la capture du paiement.");
+  }
 });
 
-// ✅ Démarrer serveur
+// ✅ Start server
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log("🚀 Serveur lancé sur le port", PORT));
+
 
