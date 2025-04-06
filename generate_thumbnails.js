@@ -1,66 +1,69 @@
+// 📁 backend/generate_thumbnails.js
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
 import path from 'path';
 import AWS from 'aws-sdk';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Configuration AWS
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// ✅ Config AWS S3
 const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   region: process.env.AWS_REGION,
 });
 
-const videosFolder = "C:/Users/pouke/Desktop/New_Projekt";
-const thumbnailsFolder = path.join(videosFolder, 'thumbnails');
+// ✅ Dossier contenant les vidéos locales
+const videosFolder = "C:/Users/pouke/Desktop/New_Projekt/";
 
-if (!fs.existsSync(thumbnailsFolder)) {
-  fs.mkdirSync(thumbnailsFolder, { recursive: true });
-}
-
+// ✅ Parcours des fichiers
 fs.readdir(videosFolder, (err, files) => {
-  if (err) return console.error('Erreur en lisant le dossier vidéos:', err);
+  if (err) return console.error('Erreur de lecture du dossier vidéo :', err);
 
   files.forEach((file) => {
-    const ext = path.extname(file).toLowerCase();
-    if (!['.mp4', '.mov', '.avi', '.mkv'].includes(ext)) return;
+    if (!file.toLowerCase().endsWith('.mp4')) return; // Ignore les fichiers non-vidéos
 
     const inputPath = path.join(videosFolder, file);
-    const baseName = path.parse(file).name;
-    const thumbnailPath = path.join(thumbnailsFolder, `${baseName}.jpg`);
+    const thumbnailFilename = file.replace(/\.mp4$/, '.jpg');
+    const thumbnailPath = path.join(videosFolder, thumbnailFilename);
 
+    // ✅ Génération de la miniature
     ffmpeg(inputPath)
       .screenshots({
-        timestamps: ['5'],
-        filename: `${baseName}.jpg`,
-        folder: thumbnailsFolder,
+        timestamps: ['3'], // capture à 3 sec
+        filename: thumbnailFilename,
+        folder: videosFolder,
         size: '320x240',
       })
       .on('end', () => {
-        console.log(`Miniature générée: ${thumbnailPath}`);
+        console.log(`📄 Miniature générée : ${thumbnailFilename}`);
 
-        // Upload vers S3
+        // ✅ Lecture et upload vers S3
         fs.readFile(thumbnailPath, (err, data) => {
-          if (err) return console.error('Erreur lecture miniature:', err);
+          if (err) return console.error('Erreur lecture miniature :', err);
 
-          const params = {
+          const s3Params = {
             Bucket: process.env.AWS_S3_BUCKET_NAME,
-            Key: `thumbnails/${baseName}.jpg`,
+            Key: `thumbnails/${thumbnailFilename}`,
             Body: data,
             ContentType: 'image/jpeg',
             ACL: 'public-read',
           };
 
-          s3.upload(params, (err, result) => {
-            if (err) return console.error('Erreur upload S3:', err);
-            console.log(`✅ Uploadé sur S3: ${result.Location}`);
+          s3.upload(s3Params, (err, data) => {
+            if (err) return console.error('Erreur upload S3 :', err);
+            console.log(`🌌 Upload réussi : ${data.Location}`);
           });
         });
       })
       .on('error', (err) => {
-        console.error(`Erreur génération miniature pour ${file}:`, err.message);
+        console.error('Erreur ffmpeg :', err.message);
       });
   });
 });
