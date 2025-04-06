@@ -1,71 +1,62 @@
-const ffmpeg = require('fluent-ffmpeg');
-const AWS = require('aws-sdk');
-const mysql = require('mysql2/promise');
-const path = require('path');
-const fs = require('fs');
+import ffmpeg from 'fluent-ffmpeg';
+import fs from 'fs';
+import path from 'path';
+import AWS from 'aws-sdk';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import dotenv from 'dotenv';
 
-// Configuration AWS S3
+dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  region: process.env.AWS_REGION,
+  region: process.env.AWS_REGION
 });
 
-// Configuration de la base MySQL
-const db = await mysql.createConnection({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-});
+const videosFolder = path.join(__dirname, 'videos');
+const thumbnailsFolder = path.join(__dirname, 'thumbnails');
 
-const generateAndUploadThumbnail = async (video) => {
-  const thumbnailPath = `thumbnail-${video.id}.jpg`;
-  const localOutput = path.join(__dirname, thumbnailPath);
+if (!fs.existsSync(thumbnailsFolder)) {
+  fs.mkdirSync(thumbnailsFolder);
+}
 
-  return new Promise((resolve, reject) => {
-    ffmpeg(video.file_path)
+fs.readdir(videosFolder, (err, files) => {
+  if (err) return console.error('Erreur lecture dossier vidéos:', err);
+
+  files.forEach(file => {
+    const inputPath = path.join(videosFolder, file);
+    const outputPath = path.join(thumbnailsFolder, `${path.parse(file).name}.jpg`);
+
+    ffmpeg(inputPath)
       .screenshots({
         timestamps: ['5%'],
-        filename: thumbnailPath,
-        folder: __dirname,
+        filename: path.basename(outputPath),
+        folder: thumbnailsFolder,
         size: '320x240'
       })
-      .on('end', async () => {
-        try {
-          const fileContent = fs.readFileSync(localOutput);
+      .on('end', () => {
+        console.log(`✅ Miniature créée pour ${file}`);
 
-          const uploadResult = await s3.upload({
-            Bucket: process.env.AWS_BUCKET_NAME,
-            Key: `thumbnails/${thumbnailPath}`,
-            Body: fileContent,
-            ContentType: 'image/jpeg',
-            ACL: 'public-read',
-          }).promise();
+        const fileContent = fs.readFileSync(outputPath);
+        const params = {
+          Bucket: process.env.AWS_S3_BUCKET_NAME,
+          Key: `thumbnails/${path.basename(outputPath)}`,
+          Body: fileContent,
+          ContentType: 'image/jpeg',
+          ACL: 'public-read'
+        };
 
-          // Mettre à jour la base de données
-          await db.execute(
-            'UPDATE videos SET thumbnail_path = ? WHERE id = ?',
-            [uploadResult.Location, video.id]
-          );
-
-          fs.unlinkSync(localOutput); // Supprimer le fichier local
-          resolve();
-        } catch (error) {
-          reject(error);
-        }
+        s3.upload(params, (err, data) => {
+          if (err) console.error(`❌ Erreur upload miniature pour ${file}:`, err);
+          else console.log(`☁️ Miniature uploadée sur S3: ${data.Location}`);
+        });
       })
-      .on('error', reject);
+      .on('error', err => {
+        console.error(`❌ Erreur ffmpeg pour ${file}:`, err);
+      });
   });
-};
-
-// Exemple d’utilisation
-(async () => {
-  const [rows] = await db.execute('SELECT * FROM videos WHERE thumbnail_path IS NULL');
-  for (const video of rows) {
-    await generateAndUploadThumbnail(video);
-    console.log(`Miniature générée et uploadée pour la vidéo ID: ${video.id}`);
-  }
-
-  db.end();
-})();
+});
