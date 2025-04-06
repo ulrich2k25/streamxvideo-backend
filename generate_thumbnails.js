@@ -23,9 +23,14 @@ const videoPath = "C:/Users/pouke/Desktop/New_Projekt/video1.mp4";
 const thumbnailPath = "C:/Users/pouke/Desktop/New_Projekt/thumbnail1.jpg";
 
 
-if (!fs.existsSync(thumbnailsFolder)) {
-  fs.mkdirSync(thumbnailsFolder);
+//if (!fs.existsSync(thumbnailsFolder)) {
+  //fs.mkdirSync(thumbnailsFolder);
+//}
+if (!fs.existsSync(path.dirname(thumbnailPath))) {
+  fs.mkdirSync(path.dirname(thumbnailPath));
 }
+
+
 ffmpeg(videoPath)
   .screenshots({
     timestamps: ['5'],
