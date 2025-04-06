@@ -27,7 +27,8 @@ const thumbnailPath = "C:/Users/pouke/Desktop/New_Projekt/thumbnail1.jpg";
   //fs.mkdirSync(thumbnailsFolder);
 //}
 if (!fs.existsSync(path.dirname(thumbnailPath))) {
-  fs.mkdirSync(path.dirname(thumbnailPath));
+  fs.mkdirSync(path.dirname(thumbnailPath), { recursive: true });
+
 }
 
 
