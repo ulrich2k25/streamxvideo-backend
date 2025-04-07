@@ -61,8 +61,8 @@ app.post("/api/videos/upload", upload.single("video"), async (req, res) => {
 
 // ✅ Liste des vidéos
 app.get("/api/videos", (req, res) => {
-  db.query("SELECT id, title, file_path, uploaded_at FROM videos", (err, results) => {
-    if (err) return res.status(500).json({ error: "Erreur base de données." });
+ db.query("SELECT id, title, file_path, thumbnail_path, uploaded_at FROM videos", (err, results) => {
+  if (err) return res.status(500).json({ error: "Erreur base de données." });
     res.json(results);
   });
 });
