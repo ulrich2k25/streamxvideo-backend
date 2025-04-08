@@ -1,4 +1,4 @@
-// 📁 backend/sync_videos_and_thumbnails.js (Version anti-doublons + nettoyage auto + déplacement racine + conservation titres personnalisés)
+// 📁 backend/sync_videos_and_thumbnails.js (Version anti-doublons + nettoyage auto)
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
 import path from 'path';
@@ -35,9 +35,15 @@ async function syncVideosAndThumbnails() {
     port: process.env.MYSQLPORT
   });
 
-  const [existingRows] = await connection.execute('SELECT file_path, title FROM videos');
+  // 🔁 Nettoyage automatique des doublons (même basename)
+  await connection.execute(`
+    DELETE v1 FROM videos v1
+    JOIN videos v2 ON v1.id > v2.id AND v1.title = v2.title
+  `);
+  console.log("🧼 Doublons supprimés automatiquement.");
+
+  const [existingRows] = await connection.execute('SELECT file_path FROM videos');
   const uploadedFilenames = existingRows.map(row => path.basename(row.file_path));
-  const customTitles = Object.fromEntries(existingRows.map(row => [path.basename(row.file_path), row.title]));
 
   const files = fs.readdirSync(videosFolder);
   const erreurs = [];
@@ -74,42 +80,15 @@ async function syncVideosAndThumbnails() {
       if (!videoExists) await uploadFileToS3(videoPath, videoKey, videoMimeTypes[ext]);
       else console.log(`🔹 Vidéo déjà sur S3 : ${file}`);
 
-      const title = customTitles[file] || file;
       await connection.execute(
         'INSERT INTO videos (title, file_path, thumbnail_path, uploaded_at) VALUES (?, ?, ?, NOW())',
-        [title, videoUrl, thumbnailUrl]
+        [file, videoUrl, thumbnailUrl]
       );
       console.log(`✅ Vidéo ajoutée à la BDD : ${file}`);
       ajoutes.push(file);
     } catch (error) {
       console.error(`❌ Erreur avec ${file} :`, error.message);
       erreurs.push(file);
-    }
-  }
-
-  // 🚚 Déplacer vidéos déjà en racine vers /videos/ et mettre à jour file_path
-  const allObjects = await s3.listObjectsV2({ Bucket: process.env.AWS_S3_BUCKET_NAME }).promise();
-  for (const obj of allObjects.Contents) {
-    const key = obj.Key;
-    if (key.endsWith('.mp4') && !key.startsWith('videos/')) {
-      const newKey = 'videos/' + key;
-      const oldUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
-      const newUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${newKey}`;
-
-      await s3.copyObject({
-        Bucket: process.env.AWS_S3_BUCKET_NAME,
-        CopySource: `${process.env.AWS_S3_BUCKET_NAME}/${key}`,
-        Key: newKey,
-        ACL: 'public-read'
-      }).promise();
-      await s3.deleteObject({ Bucket: process.env.AWS_S3_BUCKET_NAME, Key: key }).promise();
-
-      await connection.execute(
-        'UPDATE videos SET file_path = ? WHERE file_path = ?',
-        [newUrl, oldUrl]
-      );
-
-      console.log(`🔀 Déplacé et mis à jour en BDD : ${key}`);
     }
   }
 
