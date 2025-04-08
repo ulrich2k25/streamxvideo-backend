@@ -1,4 +1,4 @@
-// 📁 backend/sync_videos_and_thumbnails.js (Fusion complet)
+// 📁 backend/sync_videos_and_thumbnails.js (Fusion complet corrigé)
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
 import path from 'path';
@@ -86,6 +86,8 @@ async function syncVideosAndThumbnails() {
     }
   }
 
+  // ✅ Fermeture après traitement complet
+  console.log('✅ Tous les fichiers traités, fermeture de la connexion...');
   await connection.end();
   console.log('🎉 Synchronisation complète terminée !');
 }
@@ -119,3 +121,4 @@ function checkS3Exists(key) {
 }
 
 syncVideosAndThumbnails().catch(console.error);
+
