@@ -1,4 +1,4 @@
-// 📁 backend/sync_videos_and_thumbnails.js (Fusion complet corrigé)
+// 📁 backend/sync_videos_and_thumbnails.js (Fusion complet avec gestion d'erreurs et résumé)
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
 import path from 'path';
@@ -40,56 +40,66 @@ async function syncVideosAndThumbnails() {
 
   const files = fs.readdirSync(videosFolder);
 
+  const erreurs = [];
+  const ajoutes = [];
+
   for (const file of files) {
     const ext = path.extname(file).toLowerCase();
     if (!videoMimeTypes[ext]) continue;
 
-    const videoPath = path.join(videosFolder, file);
-    const videoUrl = bucketVideoUrl + file;
-    const thumbnailName = file.replace(ext, '.jpg');
-    const thumbnailPath = path.join(videosFolder, thumbnailName);
-    const thumbnailUrl = bucketThumbUrl + thumbnailName;
+    try {
+      const videoPath = path.join(videosFolder, file);
+      const videoUrl = bucketVideoUrl + file;
+      const thumbnailName = file.replace(ext, '.jpg');
+      const thumbnailPath = path.join(videosFolder, thumbnailName);
+      const thumbnailUrl = bucketThumbUrl + thumbnailName;
 
-    // 🔢 Miniature : générer si manquante localement
-    if (!fs.existsSync(thumbnailPath)) {
-      await new Promise((resolve, reject) => {
-        ffmpeg(videoPath)
-          .screenshots({ timestamps: ['3'], filename: thumbnailName, folder: videosFolder, size: '320x240' })
-          .on('end', () => { console.log(`✅ Miniature créée : ${thumbnailName}`); resolve(); })
-          .on('error', err => { console.error(`Erreur ffmpeg :`, err.message); reject(err); });
-      });
-    }
+      if (!fs.existsSync(thumbnailPath)) {
+        await new Promise((resolve, reject) => {
+          ffmpeg(videoPath)
+            .screenshots({ timestamps: ['3'], filename: thumbnailName, folder: videosFolder, size: '320x240' })
+            .on('end', () => { console.log(`✅ Miniature créée : ${thumbnailName}`); resolve(); })
+            .on('error', err => { console.error(`Erreur ffmpeg :`, err.message); reject(err); });
+        });
+      }
 
-    // ✨ Upload miniature sur S3
-    const thumbKey = `thumbnails/${thumbnailName}`;
-    await uploadFileToS3(thumbnailPath, thumbKey, 'image/jpeg');
+      await uploadFileToS3(thumbnailPath, `thumbnails/${thumbnailName}`, 'image/jpeg');
 
-    // ✨ Upload vidéo sur S3 si absente
-    const videoKey = `videos/${file}`;
-    const videoExists = await checkS3Exists(videoKey);
-    if (!videoExists) await uploadFileToS3(videoPath, videoKey, videoMimeTypes[ext]);
-    else console.log(`🔹 Vidéo déjà sur S3 : ${file}`);
+      const videoKey = `videos/${file}`;
+      const videoExists = await checkS3Exists(videoKey);
+      if (!videoExists) await uploadFileToS3(videoPath, videoKey, videoMimeTypes[ext]);
+      else console.log(`🔹 Vidéo déjà sur S3 : ${file}`);
 
-    // 🔢 Insert ou update dans la BDD
-    if (!existingFilePaths.includes(videoUrl)) {
-      await connection.execute(
-        'INSERT INTO videos (title, file_path, thumbnail_path, uploaded_at) VALUES (?, ?, ?, NOW())',
-        [file, videoUrl, thumbnailUrl]
-      );
-      console.log(`✅ Vidéo ajoutée à la BDD : ${file}`);
-    } else {
-      await connection.execute(
-        'UPDATE videos SET thumbnail_path = ? WHERE file_path = ?',
-        [thumbnailUrl, videoUrl]
-      );
-      console.log(`✅ Miniature mise à jour pour : ${file}`);
+      if (!existingFilePaths.includes(videoUrl)) {
+        await connection.execute(
+          'INSERT INTO videos (title, file_path, thumbnail_path, uploaded_at) VALUES (?, ?, ?, NOW())',
+          [file, videoUrl, thumbnailUrl]
+        );
+        console.log(`✅ Vidéo ajoutée à la BDD : ${file}`);
+        ajoutes.push(file);
+      } else {
+        await connection.execute(
+          'UPDATE videos SET thumbnail_path = ? WHERE file_path = ?',
+          [thumbnailUrl, videoUrl]
+        );
+        console.log(`✅ Miniature mise à jour pour : ${file}`);
+      }
+    } catch (error) {
+      console.error(`❌ Erreur avec ${file} :`, error.message);
+      erreurs.push(file);
     }
   }
 
-  // ✅ Fermeture après traitement complet
-  console.log('✅ Tous les fichiers traités, fermeture de la connexion...');
   await connection.end();
-  console.log('🎉 Synchronisation complète terminée !');
+
+  console.log('\n📊 RÉSUMÉ :');
+  console.log(`✅ Vidéos ajoutées : ${ajoutes.length}`);
+  ajoutes.forEach(name => console.log(`  ➕ ${name}`));
+
+  console.log(`❌ Échecs : ${erreurs.length}`);
+  erreurs.forEach(name => console.log(`  ⚠️ ${name}`));
+
+  console.log('\n🎉 Synchronisation complète terminée !');
 }
 
 function uploadFileToS3(localPath, key, contentType) {
@@ -121,4 +131,3 @@ function checkS3Exists(key) {
 }
 
 syncVideosAndThumbnails().catch(console.error);
-
