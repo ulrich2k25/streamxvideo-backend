@@ -1,4 +1,4 @@
-// 📁 backend/sync_videos_and_thumbnails.js (Version corrigée avec update thumbnail_path si existe déjà)
+// 📁 backend/sync_videos_and_thumbnails.js (Version complète avec mise à jour miniatures)
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
 import path from 'path';
@@ -35,7 +35,7 @@ async function syncVideosAndThumbnails() {
     port: process.env.MYSQLPORT
   });
 
-  // 🔁 Supprime les doublons (même titre)
+  // 🔁 Supprimer les doublons de titre (nettoyage auto)
   await connection.execute(`
     DELETE v1 FROM videos v1
     JOIN videos v2 ON v1.id > v2.id AND v1.title = v2.title
@@ -43,7 +43,7 @@ async function syncVideosAndThumbnails() {
   console.log("🧼 Doublons supprimés automatiquement.");
 
   const [existingRows] = await connection.execute('SELECT file_path FROM videos');
-  const uploadedFilePaths = existingRows.map(row => row.file_path);
+  const uploadedFilenames = existingRows.map(row => path.basename(row.file_path));
 
   const files = fs.readdirSync(videosFolder);
   const erreurs = [];
@@ -73,23 +73,28 @@ async function syncVideosAndThumbnails() {
 
       const videoKey = `videos/${file}`;
       const videoExists = await checkS3Exists(videoKey);
-      if (!videoExists) await uploadFileToS3(videoPath, videoKey, videoMimeTypes[ext]);
-      else console.log(`🔹 Vidéo déjà sur S3 : ${file}`);
+      if (!videoExists) {
+        await uploadFileToS3(videoPath, videoKey, videoMimeTypes[ext]);
+      } else {
+        console.log(`🔹 Vidéo déjà sur S3 : ${file}`);
+      }
 
-      if (uploadedFilePaths.includes(videoUrl)) {
+      if (uploadedFilenames.includes(file)) {
+        // Mettre à jour la miniature si la vidéo existe déjà dans la BDD
         await connection.execute(
           'UPDATE videos SET thumbnail_path = ? WHERE file_path = ?',
           [thumbnailUrl, videoUrl]
         );
-        console.log(`🔄 Miniature mise à jour pour : ${file}`);
-      } else {
-        await connection.execute(
-          'INSERT INTO videos (title, file_path, thumbnail_path, uploaded_at) VALUES (?, ?, ?, NOW())',
-          [file, videoUrl, thumbnailUrl]
-        );
-        console.log(`✅ Vidéo ajoutée à la BDD : ${file}`);
-        ajoutes.push(file);
+        console.log(`♻️ Miniature mise à jour en BDD pour : ${file}`);
+        continue;
       }
+
+      await connection.execute(
+        'INSERT INTO videos (title, file_path, thumbnail_path, uploaded_at) VALUES (?, ?, ?, NOW())',
+        [file, videoUrl, thumbnailUrl]
+      );
+      console.log(`✅ Vidéo ajoutée à la BDD : ${file}`);
+      ajoutes.push(file);
 
     } catch (error) {
       console.error(`❌ Erreur avec ${file} :`, error.message);
