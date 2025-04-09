@@ -1,4 +1,4 @@
-// 📁 backend/sync_videos_and_thumbnails.js (Version complète avec mise à jour miniatures)
+// // 📁 backend/sync_videos_and_thumbnails.js (Version complète avec mise à jour miniatures)
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
 import path from 'path';
@@ -143,3 +143,5 @@ function checkS3Exists(key) {
 }
 
 syncVideosAndThumbnails().catch(console.error);
+
+ 
