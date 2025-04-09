@@ -1,4 +1,4 @@
-// 📁 backend/sync_videos_and_thumbnails.js (Version anti-doublons + nettoyage auto)
+// 📁 backend/sync_videos_and_thumbnails.js (Version anti-doublons + mise à jour miniatures)
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
 import path from 'path';
@@ -40,7 +40,7 @@ async function syncVideosAndThumbnails() {
     DELETE v1 FROM videos v1
     JOIN videos v2 ON v1.id > v2.id AND v1.title = v2.title
   `);
-  console.log("🧼 Doublons supprimés automatiquement.");
+  console.log("🪜 Doublons supprimés automatiquement.");
 
   const [existingRows] = await connection.execute('SELECT file_path FROM videos');
   const uploadedFilenames = existingRows.map(row => path.basename(row.file_path));
@@ -52,18 +52,14 @@ async function syncVideosAndThumbnails() {
   for (const file of files) {
     const ext = path.extname(file).toLowerCase();
     if (!videoMimeTypes[ext]) continue;
-    if (uploadedFilenames.includes(file)) {
-      console.log(`⏩ Déjà en base, ignoré : ${file}`);
-      continue;
-    }
+
+    const videoPath = path.join(videosFolder, file);
+    const videoUrl = bucketVideoUrl + file;
+    const thumbnailName = file.replace(ext, '.jpg');
+    const thumbnailPath = path.join(videosFolder, thumbnailName);
+    const thumbnailUrl = bucketThumbUrl + thumbnailName;
 
     try {
-      const videoPath = path.join(videosFolder, file);
-      const videoUrl = bucketVideoUrl + file;
-      const thumbnailName = file.replace(ext, '.jpg');
-      const thumbnailPath = path.join(videosFolder, thumbnailName);
-      const thumbnailUrl = bucketThumbUrl + thumbnailName;
-
       if (!fs.existsSync(thumbnailPath)) {
         await new Promise((resolve, reject) => {
           ffmpeg(videoPath)
@@ -79,6 +75,15 @@ async function syncVideosAndThumbnails() {
       const videoExists = await checkS3Exists(videoKey);
       if (!videoExists) await uploadFileToS3(videoPath, videoKey, videoMimeTypes[ext]);
       else console.log(`🔹 Vidéo déjà sur S3 : ${file}`);
+
+      if (uploadedFilenames.includes(file)) {
+        await connection.execute(
+          'UPDATE videos SET thumbnail_path = ? WHERE file_path LIKE ?',
+          [thumbnailUrl, `%${file}`]
+        );
+        console.log(`♻️ Miniature mise à jour pour : ${file}`);
+        continue;
+      }
 
       await connection.execute(
         'INSERT INTO videos (title, file_path, thumbnail_path, uploaded_at) VALUES (?, ?, ?, NOW())',
