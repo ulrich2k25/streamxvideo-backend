@@ -1,4 +1,5 @@
-// 📁 backend/sync_videos_and_thumbnails.js (Corrigé : ajout BDD + maintien connexion)
+// 📁 backend/sync_videos_and_thumbnails.js (Corrigé : pool MySQL + robustesse)
+
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
 import path from 'path';
@@ -25,16 +26,19 @@ const videosFolder = 'C:/VideosTest';
 const bucketVideoUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/videos/`;
 const bucketThumbUrl = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/thumbnails/`;
 
-async function syncVideosAndThumbnails() {
-  const connection = await mysql.createConnection({
-    host: process.env.MYSQLHOST,
-    user: process.env.MYSQLUSER,
-    password: process.env.MYSQLPASSWORD,
-    database: process.env.MYSQLDATABASE,
-    port: process.env.MYSQLPORT
-  });
+const pool = mysql.createPool({
+  host: process.env.MYSQLHOST,
+  user: process.env.MYSQLUSER,
+  password: process.env.MYSQLPASSWORD,
+  database: process.env.MYSQLDATABASE,
+  port: process.env.MYSQLPORT,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
+});
 
-  const [existingRows] = await connection.execute('SELECT file_path FROM videos');
+async function syncVideosAndThumbnails() {
+  const [existingRows] = await pool.execute('SELECT file_path FROM videos');
   const uploadedFilenames = existingRows.map(row => path.basename(row.file_path));
 
   const files = fs.readdirSync(videosFolder);
@@ -56,7 +60,6 @@ async function syncVideosAndThumbnails() {
     const alreadyUploaded = uploadedFilenames.includes(file);
 
     try {
-      // Créer miniature si inexistante localement
       if (!fs.existsSync(thumbnailPath)) {
         await new Promise((resolve, reject) => {
           ffmpeg(videoPath)
@@ -72,11 +75,9 @@ async function syncVideosAndThumbnails() {
         });
       }
 
-      // Upload miniature
       await uploadFileToS3(thumbnailPath, thumbnailKey, 'image/jpeg');
       console.log(`🚀 Upload réussi : ${thumbnailKey}`);
 
-      // Upload vidéo si pas sur S3
       const videoExists = await checkS3Exists(videoKey);
       if (!videoExists) {
         await uploadFileToS3(videoPath, videoKey, videoMimeTypes[ext]);
@@ -85,16 +86,15 @@ async function syncVideosAndThumbnails() {
         console.log(`📦 Vidéo déjà sur S3 : ${file}`);
       }
 
-      // Ajout ou mise à jour dans MySQL
       if (!alreadyUploaded) {
-        await connection.execute(
+        await pool.execute(
           'INSERT INTO videos (title, file_path, thumbnail_path, uploaded_at) VALUES (?, ?, ?, NOW())',
           [file, videoUrl, thumbnailUrl]
         );
         console.log(`✅ Vidéo ajoutée à la BDD : ${file}`);
         ajoutes.push(file);
       } else {
-        await connection.execute(
+        await pool.execute(
           'UPDATE videos SET thumbnail_path = ? WHERE file_path LIKE ?',
           [thumbnailUrl, `%/${file}`]
         );
@@ -106,7 +106,7 @@ async function syncVideosAndThumbnails() {
     }
   }
 
-  await connection.end();
+  await pool.end();
 
   console.log('\n📊 RÉSUMÉ :');
   console.log(`✅ Vidéos ajoutées : ${ajoutes.length}`);
