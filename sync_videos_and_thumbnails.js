@@ -1,4 +1,4 @@
-// // 📁 backend/sync_videos_and_thumbnails.js (Version complète avec mise à jour miniatures)
+// 📁 backend/sync_videos_and_thumbnails.js (Corrigé : ajout BDD + maintien connexion)
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
 import path from 'path';
@@ -8,7 +8,6 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// 🔑 Config AWS S3
 const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
@@ -35,13 +34,6 @@ async function syncVideosAndThumbnails() {
     port: process.env.MYSQLPORT
   });
 
-  // 🔁 Supprimer les doublons de titre (nettoyage auto)
-  await connection.execute(`
-    DELETE v1 FROM videos v1
-    JOIN videos v2 ON v1.id > v2.id AND v1.title = v2.title
-  `);
-  console.log("🧼 Doublons supprimés automatiquement.");
-
   const [existingRows] = await connection.execute('SELECT file_path FROM videos');
   const uploadedFilenames = existingRows.map(row => path.basename(row.file_path));
 
@@ -54,48 +46,60 @@ async function syncVideosAndThumbnails() {
     if (!videoMimeTypes[ext]) continue;
 
     const videoPath = path.join(videosFolder, file);
+    const videoKey = `videos/${file}`;
     const videoUrl = bucketVideoUrl + file;
     const thumbnailName = file.replace(ext, '.jpg');
     const thumbnailPath = path.join(videosFolder, thumbnailName);
+    const thumbnailKey = `thumbnails/${thumbnailName}`;
     const thumbnailUrl = bucketThumbUrl + thumbnailName;
 
+    const alreadyUploaded = uploadedFilenames.includes(file);
+
     try {
+      // Créer miniature si inexistante localement
       if (!fs.existsSync(thumbnailPath)) {
         await new Promise((resolve, reject) => {
           ffmpeg(videoPath)
             .screenshots({ timestamps: ['3'], filename: thumbnailName, folder: videosFolder, size: '320x240' })
-            .on('end', () => { console.log(`✅ Miniature créée : ${thumbnailName}`); resolve(); })
-            .on('error', err => { console.error(`Erreur ffmpeg :`, err.message); reject(err); });
+            .on('end', () => {
+              console.log(`✅ Miniature créée : ${thumbnailName}`);
+              resolve();
+            })
+            .on('error', err => {
+              console.error(`❌ Erreur ffmpeg :`, err.message);
+              reject(err);
+            });
         });
       }
 
-      await uploadFileToS3(thumbnailPath, `thumbnails/${thumbnailName}`, 'image/jpeg');
+      // Upload miniature
+      await uploadFileToS3(thumbnailPath, thumbnailKey, 'image/jpeg');
+      console.log(`🚀 Upload réussi : ${thumbnailKey}`);
 
-      const videoKey = `videos/${file}`;
+      // Upload vidéo si pas sur S3
       const videoExists = await checkS3Exists(videoKey);
       if (!videoExists) {
         await uploadFileToS3(videoPath, videoKey, videoMimeTypes[ext]);
+        console.log(`🚀 Upload réussi : ${videoKey}`);
       } else {
-        console.log(`🔹 Vidéo déjà sur S3 : ${file}`);
+        console.log(`📦 Vidéo déjà sur S3 : ${file}`);
       }
 
-      if (uploadedFilenames.includes(file)) {
-        // Mettre à jour la miniature si la vidéo existe déjà dans la BDD
+      // Ajout ou mise à jour dans MySQL
+      if (!alreadyUploaded) {
         await connection.execute(
-          'UPDATE videos SET thumbnail_path = ? WHERE file_path = ?',
-          [thumbnailUrl, videoUrl]
+          'INSERT INTO videos (title, file_path, thumbnail_path, uploaded_at) VALUES (?, ?, ?, NOW())',
+          [file, videoUrl, thumbnailUrl]
         );
-        console.log(`♻️ Miniature mise à jour en BDD pour : ${file}`);
-        continue;
+        console.log(`✅ Vidéo ajoutée à la BDD : ${file}`);
+        ajoutes.push(file);
+      } else {
+        await connection.execute(
+          'UPDATE videos SET thumbnail_path = ? WHERE file_path LIKE ?',
+          [thumbnailUrl, `%/${file}`]
+        );
+        console.log(`🔄 Miniature mise à jour en BDD pour : ${file}`);
       }
-
-      await connection.execute(
-        'INSERT INTO videos (title, file_path, thumbnail_path, uploaded_at) VALUES (?, ?, ?, NOW())',
-        [file, videoUrl, thumbnailUrl]
-      );
-      console.log(`✅ Vidéo ajoutée à la BDD : ${file}`);
-      ajoutes.push(file);
-
     } catch (error) {
       console.error(`❌ Erreur avec ${file} :`, error.message);
       erreurs.push(file);
@@ -107,10 +111,8 @@ async function syncVideosAndThumbnails() {
   console.log('\n📊 RÉSUMÉ :');
   console.log(`✅ Vidéos ajoutées : ${ajoutes.length}`);
   ajoutes.forEach(name => console.log(`  ➕ ${name}`));
-
   console.log(`❌ Échecs : ${erreurs.length}`);
   erreurs.forEach(name => console.log(`  ⚠️ ${name}`));
-
   console.log('\n🎉 Synchronisation complète terminée !');
 }
 
@@ -126,8 +128,7 @@ function uploadFileToS3(localPath, key, contentType) {
         ACL: 'public-read'
       }, (err, result) => {
         if (err) return reject(err);
-        console.log(`🚀 Upload réussi : ${result.Key}`);
-        resolve();
+        resolve(result);
       });
     });
   });
@@ -143,5 +144,3 @@ function checkS3Exists(key) {
 }
 
 syncVideosAndThumbnails().catch(console.error);
-
- 
