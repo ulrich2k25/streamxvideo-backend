@@ -14,10 +14,11 @@ const app = express();
 app.use(express.json());
 
 app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'user-email'],
+  origin: "https://www.streamxvideo.com", // 🔒 Autorise uniquement ton frontend en production
+  methods: ["GET", "POST"],
+  allowedHeaders: ["Content-Type", "Authorization", "user-email"],
 }));
+
 
 // ✅ AWS S3 Config
 const s3 = new AWS.S3({
