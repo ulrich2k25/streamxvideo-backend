@@ -1,37 +1,36 @@
-// 🟢 Redeploy trigger - PayDunya update
-
 require("dotenv").config();
 const express = require("express");
 const mysql = require("mysql2");
 const cors = require("cors");
 const multer = require("multer");
 const AWS = require("aws-sdk");
-const db = require("./db");
 const paypal = require("@paypal/checkout-server-sdk");
-const paydunya = require("paydunya"); // ✅ Ajout PayDunya
+const paydunya = require("paydunya");
 
 const app = express();
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // Pour IPN PayDunya
 
-const allowedOrigins = [
-  "https://www.streamxvideo.com",
-  "https://streamxvideo.com"
-];
-
+// ✅ CORS
+const allowedOrigins = ["https://www.streamxvideo.com", "https://streamxvideo.com"];
 app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("CORS non autorisé"));
-    }
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) callback(null, true);
+    else callback(new Error("CORS non autorisé"));
   },
   methods: ["GET", "POST"],
   allowedHeaders: ["Content-Type", "Authorization", "user-email"],
 }));
 
+// ✅ MySQL
+const db = mysql.createConnection({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_DATABASE,
+});
 
-// ✅ AWS S3 Config
+// ✅ AWS S3
 const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
@@ -39,21 +38,27 @@ const s3 = new AWS.S3({
 });
 const upload = multer({ storage: multer.memoryStorage() });
 
-// ✅ PayDunya Setup (mode production)
+// ✅ PayDunya config (production)
 paydunya.setup({
   masterKey: process.env.PAYDUNYA_MASTER_KEY,
   privateKey: process.env.PAYDUNYA_PRIVATE_KEY,
   publicKey: process.env.PAYDUNYA_PUBLIC_KEY,
   token: process.env.PAYDUNYA_TOKEN,
-  mode: "live", // "test" pour test, "live" pour production
   store: {
     name: "StreamX Video",
     tagline: "Accès premium aux vidéos adultes",
     phoneNumber: "+491234567890",
     postalAddress: "Kaiserslautern, Allemagne",
-    logoURL: "https://streamxvideo.com/logo.png"
+    logoURL: "https://streamxvideo.com/logo.png",
   }
 });
+
+// ✅ PayPal config (live)
+const paypalEnv = new paypal.core.LiveEnvironment(
+  process.env.PAYPAL_CLIENT_ID,
+  process.env.PAYPAL_SECRET
+);
+const paypalClient = new paypal.core.PayPalHttpClient(paypalEnv);
 
 // ✅ Upload vidéo
 app.post("/api/videos/upload", upload.single("video"), async (req, res) => {
@@ -133,14 +138,7 @@ app.post("/api/auth", (req, res) => {
   });
 });
 
-// ✅ PayPal Live Config
-const paypalEnv = new paypal.core.LiveEnvironment(
-  process.env.PAYPAL_CLIENT_ID,
-  process.env.PAYPAL_SECRET
-);
-const paypalClient = new paypal.core.PayPalHttpClient(paypalEnv);
-
-// ✅ Création lien de paiement PayPal
+// ✅ Paiement PayPal
 app.post("/api/payments/paypal", async (req, res) => {
   const { email } = req.body;
 
@@ -164,12 +162,9 @@ app.post("/api/payments/paypal", async (req, res) => {
   }
 });
 
-// ✅ Capture PayPal
 app.get("/api/payments/success", async (req, res) => {
   const { email, token } = req.query;
-  if (!email || !token) {
-    return res.status(400).json({ error: "Email ou token manquant." });
-  }
+  if (!email || !token) return res.status(400).json({ error: "Email ou token manquant." });
 
   try {
     const captureRequest = new paypal.orders.OrdersCaptureRequest(token);
@@ -196,8 +191,7 @@ app.get("/api/payments/success", async (req, res) => {
   }
 });
 
-
-// ✅ Création lien PayDunya (Mobile Money)
+// ✅ Paiement PayDunya (Mobile Money)
 app.post("/api/payments/paydunya", async (req, res) => {
   const { email } = req.body;
 
@@ -219,15 +213,15 @@ app.post("/api/payments/paydunya", async (req, res) => {
 
   try {
     const resp = await invoice.create();
+    console.log("✅ Réponse PayDunya:", resp.response);
     res.json({ url: resp.response.invoice_url });
   } catch (err) {
-    console.error("Erreur PayDunya:", err);
+    console.error("❌ Erreur PayDunya:", err?.response || err.message || err);
     res.status(500).json({ error: "Erreur PayDunya" });
   }
 });
 
-
-// ✅ IPN (notifié par PayDunya)
+// ✅ IPN PayDunya
 app.post("/api/payments/paydunya/ipn", (req, res) => {
   const { status, custom_data } = req.body;
   const email = custom_data?.email;
@@ -248,10 +242,11 @@ app.post("/api/payments/paydunya/ipn", (req, res) => {
       }
     );
   } else {
+    console.warn("❌ Paiement échoué ou email manquant :", req.body);
     res.status(400).send("Paiement non valide ou email manquant.");
   }
 });
 
-// ✅ Lancer serveur
+// ✅ Lancer le serveur
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log("🚀 Serveur lancé sur le port", PORT));
