@@ -184,11 +184,20 @@ app.get("/api/payments/success", async (req, res) => {
   }
 });
 
+const store = new paydunya.Store();
+store.setName("StreamX Video");
+store.setTagline("Plateforme premium avec abonnement");
+store.setPhoneNumber("+491234567890"); // Facultatif mais recommandé
+store.setPostalAddress("Kaiserslautern, Allemagne");
+store.setWebsiteUrl("https://www.streamxvideo.com");
+
+
 // ✅ Création lien PayDunya (Mobile Money)
 app.post("/api/payments/paydunya", async (req, res) => {
   const { email } = req.body;
 
-  const invoice = new paydunya.Invoice();
+  const invoice = new paydunya.CheckoutInvoice(store);
+
   invoice.addItem("Abonnement mensuel", 1, 2, 0, "Accès complet aux vidéos");
   invoice.setTotalAmount(2);
   invoice.setCallbackUrl("https://streamxvideo-backend-production.up.railway.app/api/payments/paydunya/ipn");
