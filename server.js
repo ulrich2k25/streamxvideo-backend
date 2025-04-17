@@ -200,26 +200,39 @@ app.post("/api/payments/paydunya", async (req, res) => {
   }
 
   try {
-    const invoice = new paydunya.CheckoutInvoice();
+    const store = new paydunya.Store();
+    store.setName("StreamX Video");
+    store.setTagline("Abonnement 1 mois");
+    store.setPhoneNumber("+491234567890");
+    store.setPostalAddress("Kaiserslautern, Allemagne");
+    store.setWebsiteUrl("https://streamxvideo.com");
+    store.setLogoUrl("https://streamxvideo.com/logo.png");
+
+    const invoice = new paydunya.CheckoutInvoice(store);
     invoice.addItem("Abonnement", 1, 1300, 0, "Accès complet");
     invoice.setTotalAmount(1300);
     invoice.setReturnUrl("https://streamxvideo.com/success");
     invoice.setCancelUrl("https://streamxvideo.com/cancel");
-    console.log("🧾 Invoice envoyée :", invoice);
+    invoice.setCallbackUrl("https://streamxvideo-backend-production.up.railway.app/api/payments/paydunya/ipn");
+    invoice.setCustomData({ email });
+
+    console.log("📤 Invoice envoyée :", invoice);
 
     const resp = await invoice.create();
 
     if (resp && resp.response && resp.response.invoice_url) {
-      res.json({ url: resp.response.invoice_url });
+      return res.json({ url: resp.response.invoice_url });
     } else {
       console.error("❌ Réponse inattendue PayDunya :", resp);
-      res.status(500).json({ error: "Lien non généré" });
+      return res.status(500).json({ error: "Lien non généré" });
     }
+
   } catch (err) {
-    console.error("❌ Erreur PayDunya:", err);
+    console.error("❌ Erreur PayDunya :", err?.response || err.message || err);
     res.status(500).json({ error: "Erreur PayDunya" });
   }
 });
+
 
 
 // ✅ IPN (notifié par PayDunya)
