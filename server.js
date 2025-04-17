@@ -30,7 +30,6 @@ app.use(cors({
   allowedHeaders: ["Content-Type", "Authorization", "user-email"],
 }));
 
-
 // ✅ AWS S3 Config
 const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
@@ -45,13 +44,14 @@ paydunya.setup({
   privateKey: process.env.PAYDUNYA_PRIVATE_KEY,
   publicKey: process.env.PAYDUNYA_PUBLIC_KEY,
   token: process.env.PAYDUNYA_TOKEN,
-  mode: "live", // "test" pour test, "live" pour production
+  mode: "live", // production
   store: {
     name: "StreamX Video",
     tagline: "Accès premium aux vidéos adultes",
-    phoneNumber: "+221770000000",
-    postalAddress: "dakar, senegal",
-    logoURL: "https://streamxvideo.com/logo.png"
+    phoneNumber: "+221772345678", // ✅ VALIDE
+    postalAddress: "Dakar, Sénégal",
+    logoURL: "https://streamxvideo.com/logo.png",
+    website_url: "https://streamxvideo.com" // ✅ À AJOUTER
   }
 });
 
