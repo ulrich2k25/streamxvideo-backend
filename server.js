@@ -46,14 +46,11 @@ paydunya.setup({
   token: process.env.PAYDUNYA_TOKEN,
   mode: "live", // production
   store: {
-    name: "StreamX Video",
-    tagline: "Accès premium aux vidéos adultes",
-    phoneNumber: "+221772345678", // ✅ VALIDE
-    postalAddress: "Dakar, Sénégal",
-    logoURL: "https://streamxvideo.com/logo.png",
+   name: "Streamxvideo",
+    tagline: "Accès premium aux vidéos adultes"
+  }
 });
 
-  }
 // ✅ Upload vidéo
 app.post("/api/videos/upload", upload.single("video"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "Aucun fichier." });
