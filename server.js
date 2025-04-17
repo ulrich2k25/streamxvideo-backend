@@ -15,7 +15,8 @@ app.use(express.json());
 
 const allowedOrigins = [
   "https://www.streamxvideo.com",
-  "https://streamxvideo.com"
+  "https://streamxvideo.com",
+  "https://streamxvideo-frontend.vercel.app"
 ];
 
 app.use(cors({
@@ -27,8 +28,10 @@ app.use(cors({
     }
   },
   methods: ["GET", "POST"],
-  allowedHeaders: ["Content-Type", "Authorization", "user-email"],
+  credentials: true,
+  allowedHeaders: ["Content-Type", "Authorization", "user-email"]
 }));
+
 
 // ✅ AWS S3 Config
 const s3 = new AWS.S3({
