@@ -196,12 +196,10 @@ app.get("/api/payments/success", async (req, res) => {
   }
 });
 
-
 // ✅ Création lien PayDunya (Mobile Money)
 app.post("/api/payments/paydunya", async (req, res) => {
   const { email } = req.body;
-
-  console.log("📩 Reçu du frontend :", req.body); // 🔍 Voir ce que le frontend envoie
+  console.log("📬 Reçu du frontend :", req.body);
 
   if (!email) {
     return res.status(400).json({ error: "Email manquant dans la requête" });
@@ -210,18 +208,26 @@ app.post("/api/payments/paydunya", async (req, res) => {
   try {
     const invoice = new paydunya.CheckoutInvoice();
 
+    // ✅ Configuration correcte
     invoice.addItem("Abonnement mensuel", 1, 2, 0, "Accès complet aux vidéos");
-    invoice.setTotalAmount(2);
+    invoice.setTotalAmount(2); // ✅ Obligatoire
     invoice.setCallbackUrl("https://streamxvideo-backend-production.up.railway.app/api/payments/paydunya/ipn");
     invoice.setReturnUrl("https://streamxvideo-frontend.vercel.app?message=Paiement%20réussi");
     invoice.setCancelUrl("https://streamxvideo-frontend.vercel.app?message=Paiement%20annulé");
     invoice.setCustomData({ email });
 
     const resp = await invoice.create();
-    res.json({ url: resp.response.invoice_url });
+
+    // ✅ Vérifie si PayDunya a bien répondu
+    if (resp && resp.response && resp.response.invoice_url) {
+      res.json({ url: resp.response.invoice_url });
+    } else {
+      console.error("❌ Réponse inattendue PayDunya :", resp);
+      res.status(500).json({ error: "Lien non généré" });
+    }
 
   } catch (err) {
-    console.error("Erreur PayDunya:", err);
+    console.error("❌ Erreur PayDunya:", err);
     res.status(500).json({ error: "Erreur PayDunya" });
   }
 });
