@@ -202,21 +202,32 @@ app.post("/api/payments/paydunya", async (req, res) => {
   try {
     const store = new paydunya.Store();
     store.setName("StreamX Video");
-    store.setTagline("Abonnement 1 mois");
+    store.setTagline("Accès premium 1 mois");
     store.setPhoneNumber("+491234567890");
     store.setPostalAddress("Kaiserslautern, Allemagne");
     store.setWebsiteUrl("https://streamxvideo.com");
     store.setLogoUrl("https://streamxvideo.com/logo.png");
 
     const invoice = new paydunya.CheckoutInvoice(store);
-    invoice.addItem("Abonnement mensuel", 1, 1300, 1300, "Accès complet pendant 1 mois");
+
+    // ✅ Produit avec valeurs cohérentes (nom, quantité, prix unitaire, prix total, description)
+    invoice.addItem("Abonnement 1 mois", 1, 1300, 1300, "Accès complet aux vidéos");
+
+    // ✅ Montant total
     invoice.setTotalAmount(1300);
+
+    // ✅ URLs de redirection (important !)
     invoice.setReturnUrl("https://streamxvideo.com/success");
     invoice.setCancelUrl("https://streamxvideo.com/cancel");
+
+    // ✅ Callback pour activer l'abonnement après paiement
     invoice.setCallbackUrl("https://streamxvideo-backend-production.up.railway.app/api/payments/paydunya/ipn");
+
+    // ✅ Informations personnalisées (email)
     invoice.setCustomData({ email });
 
-    console.log("📤 Invoice envoyée :", invoice);
+    // ✅ Devise
+    invoice.setCurrency("XOF"); // Obligatoire pour les montants en FCFA
 
     const resp = await invoice.create();
 
