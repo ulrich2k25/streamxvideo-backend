@@ -188,24 +188,32 @@ app.get("/api/payments/success", async (req, res) => {
   }
 });
 
-// ✅ Création lien PayDunya (Mobile Money)
-app.post("/api/payments/paydunya", async (req, res) => {
+app.post("/api/paydunya/payment", async (req, res) => {
   const { email } = req.body;
-  console.log("📬 Reçu du frontend :", req.body);
+  console.log("📩 Email reçu :", email);
 
-  if (!email) {
-    return res.status(400).json({ error: "Email manquant dans la requête" });
-  }
+  if (!email) return res.status(400).json({ error: "Email manquant" });
+
+  const invoice = new paydunya.CheckoutInvoice();
+
+  invoice.addItem("Abonnement", 1, 1300, 0, "Accès complet aux vidéos");
+  invoice.setTotalAmount(1300); // 1300 FCFA
+  invoice.setReturnUrl("https://streamxvideo.com/success");
+  invoice.setCancelUrl("https://streamxvideo.com/cancel");
 
   try {
-
-    // ✅ Configuration correcte
-const invoice = new paydunya.CheckoutInvoice();
-invoice.addItem("Abonnement", 1, 500, 0, "Accès complet");
-invoice.setTotalAmount(500);
-invoice.setCurrency("XOF"); // <- Ajoute ceci
-invoice.setReturnUrl("https://streamxvideo.com/success");
-invoice.setCancelUrl("https://streamxvideo.com/cancel");
+    const resp = await invoice.create();
+    if (resp?.response?.invoice_url) {
+      return res.json({ url: resp.response.invoice_url });
+    } else {
+      console.error("⚠️ Réponse inattendue PayDunya:", resp);
+      return res.status(500).json({ error: "Lien non généré" });
+    }
+  } catch (err) {
+    console.error("❌ Erreur PayDunya:", err);
+    res.status(500).json({ error: "Erreur PayDunya" });
+  }
+});
 
 
     const resp = await invoice.create();
