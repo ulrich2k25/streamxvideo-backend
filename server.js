@@ -6,6 +6,7 @@ const multer = require("multer");
 const AWS = require("aws-sdk");
 const db = require("./db");
 const paypal = require("@paypal/checkout-server-sdk");
+const paydunya = require("paydunya"); // ✅ Ajout PayDunya
 
 const app = express();
 app.use(express.json());
@@ -23,6 +24,22 @@ const s3 = new AWS.S3({
   region: process.env.AWS_REGION,
 });
 const upload = multer({ storage: multer.memoryStorage() });
+
+// ✅ PayDunya Setup (mode production)
+paydunya.setup({
+  masterKey: process.env.PAYDUNYA_MASTER_KEY,
+  privateKey: process.env.PAYDUNYA_PRIVATE_KEY,
+  publicKey: process.env.PAYDUNYA_PUBLIC_KEY,
+  token: process.env.PAYDUNYA_TOKEN,
+  mode: "live", // "test" pour test, "live" pour production
+  store: {
+    name: "StreamX Video",
+    tagline: "Accès premium aux vidéos adultes",
+    phoneNumber: "+491234567890",
+    postalAddress: "Kaiserslautern, Allemagne",
+    logoURL: "https://streamxvideo.com/logo.png"
+  }
+});
 
 // ✅ Upload vidéo
 app.post("/api/videos/upload", upload.single("video"), async (req, res) => {
@@ -61,8 +78,8 @@ app.post("/api/videos/upload", upload.single("video"), async (req, res) => {
 
 // ✅ Liste des vidéos
 app.get("/api/videos", (req, res) => {
- db.query("SELECT id, title, file_path, thumbnail_path, uploaded_at FROM videos", (err, results) => {
-  if (err) return res.status(500).json({ error: "Erreur base de données." });
+  db.query("SELECT id, title, file_path, thumbnail_path, uploaded_at FROM videos", (err, results) => {
+    if (err) return res.status(500).json({ error: "Erreur base de données." });
     res.json(results);
   });
 });
@@ -109,16 +126,14 @@ const paypalEnv = new paypal.core.LiveEnvironment(
 );
 const paypalClient = new paypal.core.PayPalHttpClient(paypalEnv);
 
-// ✅ Création lien de paiement
+// ✅ Création lien de paiement PayPal
 app.post("/api/payments/paypal", async (req, res) => {
   const { email } = req.body;
 
   const request = new paypal.orders.OrdersCreateRequest();
   request.requestBody({
     intent: "CAPTURE",
-    purchase_units: [{
-      amount: { currency_code: "EUR", value: "2.00" }
-    }],
+    purchase_units: [{ amount: { currency_code: "EUR", value: "2.00" } }],
     application_context: {
       return_url: `https://streamxvideo-frontend.vercel.app/success?email=${encodeURIComponent(email)}`,
       cancel_url: "https://streamxvideo-frontend.vercel.app?message=Paiement%20annulé"
@@ -135,7 +150,7 @@ app.post("/api/payments/paypal", async (req, res) => {
   }
 });
 
-// ✅ Capture réelle du paiement (retour depuis /success)
+// ✅ Capture PayPal
 app.get("/api/payments/success", async (req, res) => {
   const { email, token } = req.query;
   if (!email || !token) {
@@ -164,6 +179,51 @@ app.get("/api/payments/success", async (req, res) => {
   } catch (err) {
     console.error("Erreur PayPal :", err);
     res.status(500).send("Erreur lors de la capture du paiement.");
+  }
+});
+
+// ✅ Création lien PayDunya (Mobile Money)
+app.post("/api/payments/paydunya", async (req, res) => {
+  const { email } = req.body;
+
+  const invoice = new paydunya.Invoice();
+  invoice.addItem("Abonnement mensuel", 1, 2, 0, "Accès complet aux vidéos");
+  invoice.setTotalAmount(2);
+  invoice.setCallbackUrl("https://streamxvideo-backend-production.up.railway.app/api/payments/paydunya/ipn");
+  invoice.setReturnUrl("https://streamxvideo-frontend.vercel.app?message=Paiement%20réussi");
+  invoice.setCancelUrl("https://streamxvideo-frontend.vercel.app?message=Paiement%20annulé");
+  invoice.setCustomData({ email });
+
+  invoice.create()
+    .then(resp => res.json({ url: resp.response.invoice_url }))
+    .catch(err => {
+      console.error("Erreur PayDunya:", err);
+      res.status(500).json({ error: "Erreur PayDunya" });
+    });
+});
+
+// ✅ IPN (notifié par PayDunya)
+app.post("/api/payments/paydunya/ipn", (req, res) => {
+  const { status, custom_data } = req.body;
+  const email = custom_data?.email;
+
+  if (status === "completed" && email) {
+    const expirationDate = new Date();
+    expirationDate.setMonth(expirationDate.getMonth() + 1);
+
+    db.query(
+      "UPDATE users SET isSubscribed = 1, subscription_expiration = ? WHERE email = ?",
+      [expirationDate, email],
+      (err) => {
+        if (err) {
+          console.error("Erreur DB PayDunya:", err);
+          return res.status(500).send("Erreur DB.");
+        }
+        res.send("Abonnement activé !");
+      }
+    );
+  } else {
+    res.status(400).send("Paiement non valide ou email manquant.");
   }
 });
 
