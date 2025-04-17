@@ -198,11 +198,12 @@ app.post("/api/payments/paydunya", async (req, res) => {
   }
 
   try {
-    const invoice = new paydunya.CheckoutInvoice();
 
     // ✅ Configuration correcte
-invoice.addItem("Abonnement", 1, 1300);
-invoice.setTotalAmount(1300);
+const invoice = new paydunya.CheckoutInvoice();
+invoice.addItem("Abonnement", 1, 500, 0, "Accès complet");
+invoice.setTotalAmount(500);
+invoice.setCurrency("XOF"); // <- Ajoute ceci
 invoice.setReturnUrl("https://streamxvideo.com/success");
 invoice.setCancelUrl("https://streamxvideo.com/cancel");
 
