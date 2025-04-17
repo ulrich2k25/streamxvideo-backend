@@ -49,8 +49,8 @@ paydunya.setup({
   store: {
     name: "StreamX Video",
     tagline: "Accès premium aux vidéos adultes",
-    phoneNumber: "+491234567890",
-    postalAddress: "Kaiserslautern, Allemagne",
+    phoneNumber: "+221770000000",
+    postalAddress: "dakar, senegal",
     logoURL: "https://streamxvideo.com/logo.png"
   }
 });
@@ -200,14 +200,6 @@ app.get("/api/payments/success", async (req, res) => {
 // ✅ Création lien PayDunya (Mobile Money)
 app.post("/api/payments/paydunya", async (req, res) => {
   const { email } = req.body;
-
-  const store = new paydunya.Store();
-  store.setName("StreamX Video");
-  store.setTagline("Plateforme premium avec abonnement");
-  store.setPhoneNumber("+491234567890");
-  store.setPostalAddress("Kaiserslautern, Allemagne");
-  store.setWebsiteUrl("https://streamxvideo.com");
-  store.setLogoUrl("https://streamxvideo.com/logo.png");
 
   const invoice = new paydunya.CheckoutInvoice(store);
   invoice.addItem("Abonnement mensuel", 1, 2, 0, "Accès complet aux vidéos");
