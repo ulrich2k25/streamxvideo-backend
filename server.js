@@ -44,11 +44,7 @@ paydunya.setup({
   privateKey: process.env.PAYDUNYA_PRIVATE_KEY,
   publicKey: process.env.PAYDUNYA_PUBLIC_KEY,
   token: process.env.PAYDUNYA_TOKEN,
-  mode: "live", // production
-  store: {
-   name: "Streamxvideo",
-    tagline: "Accès premium aux vidéos adultes"
-  }
+  mode: "live", 
 });
 
 // ✅ Upload vidéo
@@ -205,8 +201,8 @@ app.post("/api/payments/paydunya", async (req, res) => {
     const invoice = new paydunya.CheckoutInvoice();
 
     // ✅ Configuration correcte
-invoice.addItem("Abonnement", 1, 500, 0, "Accès complet");
-invoice.setTotalAmount(500);
+invoice.addItem("Abonnement", 1, 1300, 0, "Accès complet");
+invoice.setTotalAmount(1300);
 invoice.setReturnUrl("https://streamxvideo.com/success");
 invoice.setCancelUrl("https://streamxvideo.com/cancel");
 
