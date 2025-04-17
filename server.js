@@ -205,12 +205,11 @@ app.post("/api/payments/paydunya", async (req, res) => {
     const invoice = new paydunya.CheckoutInvoice();
 
     // ✅ Configuration correcte
-    invoice.addItem("Abonnement mensuel", 1, 2, 0, "Accès complet aux vidéos");
-    invoice.setTotalAmount(2); // ✅ Obligatoire
-    invoice.setCallbackUrl("https://streamxvideo-backend-production.up.railway.app/api/payments/paydunya/ipn");
-    invoice.setReturnUrl("https://streamxvideo-frontend.vercel.app?message=Paiement%20réussi");
-    invoice.setCancelUrl("https://streamxvideo-frontend.vercel.app?message=Paiement%20annulé");
-    invoice.setCustomData({ email });
+invoice.addItem("Abonnement", 1, 500, 0, "Accès complet");
+invoice.setTotalAmount(500);
+invoice.setReturnUrl("https://streamxvideo.com/success");
+invoice.setCancelUrl("https://streamxvideo.com/cancel");
+
 
     const resp = await invoice.create();
 
