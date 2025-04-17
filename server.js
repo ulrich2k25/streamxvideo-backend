@@ -201,7 +201,7 @@ app.get("/api/payments/success", async (req, res) => {
 app.post("/api/payments/paydunya", async (req, res) => {
   const { email } = req.body;
 
-  const invoice = new paydunya.CheckoutInvoice(store);
+  const invoice = new paydunya.CheckoutInvoice();
   invoice.addItem("Abonnement mensuel", 1, 2, 0, "Accès complet aux vidéos");
   invoice.setTotalAmount(2);
   invoice.setCallbackUrl("https://streamxvideo-backend-production.up.railway.app/api/payments/paydunya/ipn");
