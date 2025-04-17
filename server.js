@@ -215,9 +215,6 @@ app.post("/api/paydunya/payment", async (req, res) => {
   }
 });
 
-
-    const resp = await invoice.create();
-
     // ✅ Vérifie si PayDunya a bien répondu
     if (resp && resp.response && resp.response.invoice_url) {
       res.json({ url: resp.response.invoice_url });
