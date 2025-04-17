@@ -51,10 +51,9 @@ paydunya.setup({
     phoneNumber: "+221772345678", // ✅ VALIDE
     postalAddress: "Dakar, Sénégal",
     logoURL: "https://streamxvideo.com/logo.png",
-    website_url: "https://streamxvideo.com" // ✅ À AJOUTER
-  }
 });
 
+  }
 // ✅ Upload vidéo
 app.post("/api/videos/upload", upload.single("video"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "Aucun fichier." });
