@@ -201,8 +201,14 @@ app.get("/api/payments/success", async (req, res) => {
 app.post("/api/payments/paydunya", async (req, res) => {
   const { email } = req.body;
 
+  console.log("📩 Reçu du frontend :", req.body); // 🔍 Voir ce que le frontend envoie
+
+  if (!email) {
+    return res.status(400).json({ error: "Email manquant dans la requête" });
+  }
+
   try {
-    const invoice = new paydunya.CheckoutInvoice(); // ✅ PAS de paramètre
+    const invoice = new paydunya.CheckoutInvoice();
 
     invoice.addItem("Abonnement mensuel", 1, 2, 0, "Accès complet aux vidéos");
     invoice.setTotalAmount(2);
@@ -219,7 +225,6 @@ app.post("/api/payments/paydunya", async (req, res) => {
     res.status(500).json({ error: "Erreur PayDunya" });
   }
 });
-
 
 
 // ✅ IPN (notifié par PayDunya)
