@@ -205,6 +205,7 @@ app.post("/api/payments/paydunya", async (req, res) => {
     invoice.setTotalAmount(1300);
     invoice.setReturnUrl("https://streamxvideo.com/success");
     invoice.setCancelUrl("https://streamxvideo.com/cancel");
+    console.log("🧾 Invoice envoyée :", invoice);
 
     const resp = await invoice.create();
 
