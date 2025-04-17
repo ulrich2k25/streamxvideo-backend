@@ -13,8 +13,19 @@ const paydunya = require("paydunya"); // ✅ Ajout PayDunya
 const app = express();
 app.use(express.json());
 
+const allowedOrigins = [
+  "https://www.streamxvideo.com",
+  "https://streamxvideo.com"
+];
+
 app.use(cors({
-  origin: "https://www.streamxvideo.com", // 🔒 Autorise uniquement ton frontend en production
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("CORS non autorisé"));
+    }
+  },
   methods: ["GET", "POST"],
   allowedHeaders: ["Content-Type", "Authorization", "user-email"],
 }));
