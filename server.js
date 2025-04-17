@@ -209,7 +209,7 @@ app.post("/api/payments/paydunya", async (req, res) => {
     store.setLogoUrl("https://streamxvideo.com/logo.png");
 
     const invoice = new paydunya.CheckoutInvoice(store);
-    invoice.addItem("Abonnement", 1, 1300, 0, "Accès complet");
+    invoice.addItem("Abonnement mensuel", 1, 1300, 1300, "Accès complet pendant 1 mois");
     invoice.setTotalAmount(1300);
     invoice.setReturnUrl("https://streamxvideo.com/success");
     invoice.setCancelUrl("https://streamxvideo.com/cancel");
