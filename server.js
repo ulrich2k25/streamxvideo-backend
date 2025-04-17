@@ -201,22 +201,25 @@ app.get("/api/payments/success", async (req, res) => {
 app.post("/api/payments/paydunya", async (req, res) => {
   const { email } = req.body;
 
-  const invoice = new paydunya.CheckoutInvoice();
-  invoice.addItem("Abonnement mensuel", 1, 2, 0, "Accès complet aux vidéos");
-  invoice.setTotalAmount(2);
-  invoice.setCallbackUrl("https://streamxvideo-backend-production.up.railway.app/api/payments/paydunya/ipn");
-  invoice.setReturnUrl("https://streamxvideo-frontend.vercel.app?message=Paiement%20réussi");
-  invoice.setCancelUrl("https://streamxvideo-frontend.vercel.app?message=Paiement%20annulé");
-  invoice.setCustomData({ email });
-
   try {
+    const invoice = new paydunya.CheckoutInvoice(); // ✅ PAS de paramètre
+
+    invoice.addItem("Abonnement mensuel", 1, 2, 0, "Accès complet aux vidéos");
+    invoice.setTotalAmount(2);
+    invoice.setCallbackUrl("https://streamxvideo-backend-production.up.railway.app/api/payments/paydunya/ipn");
+    invoice.setReturnUrl("https://streamxvideo-frontend.vercel.app?message=Paiement%20réussi");
+    invoice.setCancelUrl("https://streamxvideo-frontend.vercel.app?message=Paiement%20annulé");
+    invoice.setCustomData({ email });
+
     const resp = await invoice.create();
     res.json({ url: resp.response.invoice_url });
+
   } catch (err) {
     console.error("Erreur PayDunya:", err);
     res.status(500).json({ error: "Erreur PayDunya" });
   }
 });
+
 
 
 // ✅ IPN (notifié par PayDunya)
