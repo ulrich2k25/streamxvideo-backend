@@ -213,7 +213,7 @@ app.post("/api/payments/crypto", async (req, res) => {
         description: "Abonnement 1 mois - Accès illimité aux vidéos premium",
         pricing_type: "fixed_price",
         local_price: {
-          amount: "5.00",
+          amount: "2.13",
           currency: "USD",
         },
         metadata: {
