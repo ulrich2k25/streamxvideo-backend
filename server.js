@@ -6,11 +6,15 @@ const mysql = require("mysql2");
 const cors = require("cors");
 const multer = require("multer");
 const AWS = require("aws-sdk");
+const axios = require("axios");
 const db = require("./db");
 const paypal = require("@paypal/checkout-server-sdk");
 const paydunya = require("paydunya"); // ✅ Ajout PayDunya
+const crypto = require("crypto");
 
 const app = express();
+app.use("/api/payments/coinbase/webhook", express.raw({ type: "application/json" }));
+
 app.use(express.json());
 
 const allowedOrigins = [
@@ -191,67 +195,74 @@ app.get("/api/payments/success", async (req, res) => {
   }
 });
 
-app.post("/api/payments/paydunya", async (req, res) => {
+// ✅ Intégration Coinbase Commerce dynamique
+
+// Route pour créer dynamiquement un paiement crypto
+app.post("/api/payments/crypto", async (req, res) => {
   const { email } = req.body;
-  console.log("📩 Reçu du frontend :", req.body);
 
   if (!email) {
     return res.status(400).json({ error: "Email manquant dans la requête" });
   }
 
   try {
-    const store = new paydunya.Store();
-    store.setName("StreamX Video");
-    store.setTagline("Accès premium 1 mois");
-    store.setPhoneNumber("+491234567890");
-    store.setPostalAddress("Kaiserslautern, Allemagne");
-    store.setWebsiteUrl("https://streamxvideo.com");
-    store.setLogoUrl("https://streamxvideo.com/logo.png");
+    const response = await axios.post(
+      "https://api.commerce.coinbase.com/charges",
+      {
+        name: "Abonnement StreamX Video",
+        description: "Abonnement 1 mois - Accès illimité aux vidéos premium",
+        pricing_type: "fixed_price",
+        local_price: {
+          amount: "5.00",
+          currency: "USD",
+        },
+        metadata: {
+          email: email,
+        },
+        redirect_url: "https://streamxvideo.com/confirmation-crypto",
+        cancel_url: "https://streamxvideo.com/cancel",
+      },
+      {
+        headers: {
+          "X-CC-Api-Key": process.env.COINBASE_API_KEY,
+          "X-CC-Version": "2018-03-22",
+        },
+      }
+    );
 
-    const invoice = new paydunya.CheckoutInvoice(store);
+    const hostedUrl = response.data?.data?.hosted_url;
 
-    // ✅ Produit avec valeurs cohérentes (nom, quantité, prix unitaire, prix total, description)
-    invoice.addItem("Abonnement 1 mois", 1, 1300, 1300, "Accès complet aux vidéos");
-
-    // ✅ Montant total
-    invoice.setTotalAmount(1300);
-
-    // ✅ URLs de redirection (important !)
-    invoice.setReturnUrl("https://streamxvideo.com/success");
-    invoice.setCancelUrl("https://streamxvideo.com/cancel");
-
-    // ✅ Callback pour activer l'abonnement après paiement
-    invoice.setCallbackUrl("https://streamxvideo-backend-production.up.railway.app/api/payments/paydunya/ipn");
-
-    // ✅ Informations personnalisées (email)
-    invoice.setCustomData({ email });
-
-    // ✅ Devise
-    invoice.setCurrency("XOF"); // Obligatoire pour les montants en FCFA
-
-    const resp = await invoice.create();
-
-    if (resp && resp.response && resp.response.invoice_url) {
-      return res.json({ url: resp.response.invoice_url });
-    } else {
-      console.error("❌ Réponse inattendue PayDunya :", resp);
-      return res.status(500).json({ error: "Lien non généré" });
+    if (!hostedUrl) {
+      return res.status(500).json({ error: "Erreur lors de la création du paiement." });
     }
 
+    return res.json({ url: hostedUrl });
   } catch (err) {
-    console.error("❌ Erreur PayDunya :", err?.response || err.message || err);
-    res.status(500).json({ error: "Erreur PayDunya" });
+    console.error("❌ Erreur Coinbase Commerce:", err.response?.data || err.message);
+    return res.status(500).json({ error: "Erreur Coinbase Commerce" });
   }
 });
 
+// ✅ Middleware spécial pour Webhook Coinbase
+app.use("/api/payments/coinbase/webhook", express.raw({ type: "application/json" }));
 
+// ✅ Webhook Coinbase : activation automatique après paiement
+app.post("/api/payments/coinbase/webhook", (req, res) => {
+  const signature = req.headers["x-cc-webhook-signature"];
+  const payload = req.body;
+  const secret = process.env.COINBASE_WEBHOOK_SECRET;
 
-// ✅ IPN (notifié par PayDunya)
-app.post("/api/payments/paydunya/ipn", (req, res) => {
-  const { status, custom_data } = req.body;
-  const email = custom_data?.email;
+  const hmac = crypto.createHmac("sha256", secret).update(payload).digest("hex");
 
-  if (status === "completed" && email) {
+  if (signature !== hmac) {
+    return res.status(400).send("Signature invalide");
+  }
+
+  const event = JSON.parse(payload);
+  const status = event?.event?.type;
+  const email = event?.event?.data?.metadata?.email;
+
+  if (status === "charge:confirmed" && email) {
     const expirationDate = new Date();
     expirationDate.setMonth(expirationDate.getMonth() + 1);
 
@@ -260,16 +271,17 @@ app.post("/api/payments/paydunya/ipn", (req, res) => {
       [expirationDate, email],
       (err) => {
         if (err) {
-          console.error("Erreur DB PayDunya:", err);
-          return res.status(500).send("Erreur DB.");
+          console.error("Erreur DB Coinbase:", err);
+          return res.status(500).send("Erreur DB");
         }
-        res.send("Abonnement activé !");
+        return res.send("✅ Abonnement activé automatiquement !");
       }
     );
   } else {
-    res.status(400).send("Paiement non valide ou email manquant.");
+    res.send("⏳ Paiement non encore confirmé ou email manquant.");
   }
 });
+
 
 // ✅ Lancer serveur
 const PORT = process.env.PORT || 8080;

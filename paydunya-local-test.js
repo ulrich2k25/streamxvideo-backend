@@ -1,28 +1,26 @@
+// ✅ paydunya-test.js
 const express = require("express");
-const bodyParser = require("body-parser");
 const paydunya = require("paydunya");
-require("dotenv").config();
 
 const app = express();
-app.use(bodyParser.json());
 
 paydunya.setup({
-  masterKey: process.env.PAYDUNYA_MASTER_KEY,
-  privateKey: process.env.PAYDUNYA_PRIVATE_KEY,
-  publicKey: process.env.PAYDUNYA_PUBLIC_KEY,
-  token: process.env.PAYDUNYA_TOKEN,
-  mode: "live",
+  masterKey: "fth7y5r8-Ln0H-er44-Zs1S-aB1zGm04BFZq", // ✅ Clé principale (pas dans les clés API)
+  privateKey: "test_private_i0euOIEaRnoxx1UFP1dRHsgTkOI",
+  publicKey: "test_public_pONyNRgYqkMyDnJ2xe9g0VBTwbo",
+  token: "Ra5RoqHIUGBRITRINZ0d",
+  mode: "test",
   store: {
     name: "StreamX Video",
-    tagline: "Accès premium aux vidéos adultes",
+    tagline: "Accès premium",
     phoneNumber: "+221772345678",
     postalAddress: "Dakar, Sénégal",
     logoURL: "https://streamxvideo.com/logo.png"
   }
 });
 
-app.post("/payer", async (req, res) => {
-  console.log("📧 Email reçu :", req.body.email);
+app.get("/test-paydunya", async (req, res) => {
+  console.log("✅ Route GET /test-paydunya déclenchée");
 
   const store = new paydunya.Store();
   store.setName("StreamX Video");
@@ -33,7 +31,7 @@ app.post("/payer", async (req, res) => {
   store.setLogoUrl("https://streamxvideo.com/logo.png");
 
   const invoice = new paydunya.CheckoutInvoice(store);
-  invoice.addItem("Abonnement", 1, 1, 0, "Accès complet");
+  invoice.addItem("Abonnement", 1, 1.0, "Accès complet");
   invoice.setTotalAmount(1);
   invoice.setReturnUrl("https://streamxvideo.com/success");
   invoice.setCancelUrl("https://streamxvideo.com/cancel");
@@ -42,11 +40,11 @@ app.post("/payer", async (req, res) => {
     const resp = await invoice.create();
     res.json({ url: resp.response.invoice_url });
   } catch (err) {
-    console.error("❌ Erreur PayDunya:", err);
+    console.error("❌ Erreur PayDunya :", err);
     res.status(500).json({ error: "Erreur PayDunya" });
   }
 });
 
 app.listen(8080, () => {
-  console.log("🚀 Serveur local PayDunya : http://localhost:8080");
+  console.log("🚀 Serveur local PayDunya actif : http://localhost:8080");
 });
